@@ -10,3 +10,22 @@ The goal is:
 - have a team of agents
 - each agent has a persona with certain characteristics, skills and access to tools
 - the agents interact with each other, trying to solve a common problem
+
+
+---
+
+# Setup
+on Windows
+
+```bash
+py -m venv .venv
+.\.venv\Scripts\activate
+py -m pip install --upgrade pip
+pip3 install -r .\requirements.txt
+```
+
+# Run
+
+```bash
+py .\main.py
+```
