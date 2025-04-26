@@ -7,6 +7,7 @@ class ResponseStatus(NamedTuple):
     code: int
     message: str
 
+
 RESPONSE_OK = ResponseStatus(200, "OK")
 RESPONSE_INVALID_REQUEST = ResponseStatus(400, "Invalid request")
 RESPONSE_NOT_FOUND = ResponseStatus(404, "Not found")
@@ -14,22 +15,35 @@ RESPONSE_INTERNAL_ERROR = ResponseStatus(500, "Internal error")
 
 
 class Function:
-    def __init__(self, name: str, description: str, func: Callable[[int, pydantic.BaseModel], pydantic.BaseModel]):
+    def __init__(
+        self,
+        name: str,
+        description: str,
+        func: Callable[[int, pydantic.BaseModel], pydantic.BaseModel],
+    ):
         assert name
         assert description
         assert callable(func)
 
         sig = inspect.signature(func)
         params = list(sig.parameters.values())
-        assert len(params) == 2, "func must take exactly two argument (besides self if method): [agent_id:int, input_: pydantic.BaseModel]"
-        assert params[0].annotation == int, "First argument must be of type int (agent_id)"
+        assert (
+            len(params) == 2
+        ), "func must take exactly two argument (besides self if method): [agent_id:int, input_: pydantic.BaseModel]"
+        assert (
+            params[0].annotation == int
+        ), "First argument must be of type int (agent_id)"
 
         hints = get_type_hints(func)
         type_input = hints.get(params[1].name)
-        assert type_input and issubclass(type_input, pydantic.BaseModel), "Second argument must be of type pydantic.BaseModel (input)"
-        
+        assert type_input and issubclass(
+            type_input, pydantic.BaseModel
+        ), "Second argument must be of type pydantic.BaseModel (input)"
+
         type_return = hints.get("return")
-        assert type_return and issubclass(type_return, pydantic.BaseModel), "Return type must be of type pydantic.BaseModel (output)"
+        assert type_return and issubclass(
+            type_return, pydantic.BaseModel
+        ), "Return type must be of type pydantic.BaseModel (output)"
 
         self.name = name
         self.description = description
@@ -38,13 +52,13 @@ class Function:
         self.func = func
 
 
-
 class Tool:
 
     def __init__(self, name: str, description: str):
         self.name = name
         self.description = description
         self.functions = {}
+        self.system_state = {}
 
     def register_function(self, func: Function):
         if not isinstance(func, Function):
@@ -66,3 +80,6 @@ class Tool:
                 for func in self.functions.values()
             ],
         }
+
+    def update(self, state: dict):
+        self.system_state = state

@@ -1,4 +1,6 @@
 import pydantic
+from typing import Optional
+import os
 
 from .tool import (
     Tool,
@@ -15,7 +17,7 @@ class GetFilesInput(pydantic.BaseModel):
 
 class GetFilesOutput(pydantic.BaseModel):
     status: ResponseStatus
-    files: list[str]
+    files: Optional[list[str]]
 
 
 class ReadFileInput(pydantic.BaseModel):
@@ -24,7 +26,7 @@ class ReadFileInput(pydantic.BaseModel):
 
 class ReadFileOutput(pydantic.BaseModel):
     status: ResponseStatus
-    content: str
+    content: Optional[str]
 
 
 class WriteFileInput(pydantic.BaseModel):
@@ -38,12 +40,13 @@ class WriteFileOutput(pydantic.BaseModel):
 
 class Storage(Tool):
 
-    def __init__(self):
+    def __init__(self, directory_path: str):
         name = "Storage"
         description = "A tool for storing and retrieving files."
         super().__init__(name, description)
 
-        self.state = {}
+        self.directory_path = directory_path
+        os.makedirs(directory_path, exist_ok=True)
 
         self.register_function(
             Function(
@@ -66,21 +69,34 @@ class Storage(Tool):
                 func=self.write_file,
             )
         )
-
-    def get_files(self, agent_id: int, input_: GetFilesInput) -> GetFilesOutput:
-        files = self.state.get(agent_id, [])
-        return GetFilesOutput(files=files)
-
-    def read_file(self, agent_id: int, input_: ReadFileInput) -> ReadFileOutput:
-        files = self.state.get(agent_id, [])
-        if input_.file_name not in files:
-            return ReadFileOutput(status=RESPONSE_NOT_FOUND, content=None)
-        return ReadFileOutput(
-            status=RESPONSE_OK, content=self.state[agent_id][input_.file_name]
+        self.register_function(
+            Function(
+                name="append_file",
+                description="Append content to a file.",
+                func=self.append_file,
+            )
         )
 
+    def get_files(self, agent_id: int, input_: GetFilesInput) -> GetFilesOutput:
+        files = os.listdir(self.directory_path)
+        return GetFilesOutput(status=RESPONSE_OK, files=files)
+
+    def read_file(self, agent_id: int, input_: ReadFileInput) -> ReadFileOutput:
+        target = os.path.join(self.directory_path, input_.file_name)
+        if not os.path.exists(target):
+            return ReadFileOutput(status=RESPONSE_NOT_FOUND, content=None)
+        with open(target, "r", encoding="utf-8") as f:
+            content = f.read()
+        return ReadFileOutput(status=RESPONSE_OK, content=content)
+
     def write_file(self, agent_id: int, input_: WriteFileInput) -> WriteFileOutput:
-        if agent_id not in self.state:
-            self.state[agent_id] = {}
-        self.state[agent_id][input_.file_name] = input_.content
+        target = os.path.join(self.directory_path, input_.file_name)
+        with open(target, "w", encoding="utf-8") as f:
+            f.write(input_.content)
+        return WriteFileOutput(status=RESPONSE_OK)
+
+    def append_file(self, agent_id: int, input_: WriteFileInput) -> WriteFileOutput:
+        target = os.path.join(self.directory_path, input_.file_name)
+        with open(target, "a", encoding="utf-8") as f:
+            f.write(input_.content)
         return WriteFileOutput(status=RESPONSE_OK)
