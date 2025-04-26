@@ -2,16 +2,20 @@ from .tools import Tool
 
 
 class Agent:
-    def __init__(self, name, role: list[str], tools: list[Tool]):
+    def __init__(self, name, role: list[str]):
         self.id = id(self)
         self.name = name
         self.role = role
-        self.tools = tools
 
+        self.tools:list[Tool] = []
+        self.inbox:list[str] = []
         
 
     def __str__(self):
-        return f"Agent({self.name})"
+        id = self.id
+        name = self.name
+        return f"Agent({name=}, {id=})"
+
     def __repr__(self):
         return str(self)
 
