@@ -17,8 +17,9 @@ class Message:
     recipients: list[str]
     content: str
 
+
 class SendMessageInput(pydantic.BaseModel):
-    agent_ids: list[int]
+    agent_names: list[str]
     message: str
 
 
@@ -43,21 +44,12 @@ class Messenger(Tool):
             )
         )
 
-    def send_message(
-        self, agent, input_: SendMessageInput
-    ) -> SendMessageOutput:
-        sender = [a for a in self.agents if a.id == agent.id][0]
-        assert sender, "Sender not found"
-
-        recipients = [a for a in self.agents if a.id in input_.agent_ids]
-        if not recipients or len(recipients) != len(input_.agent_ids):
-            found = [a.id for a in recipients]
-            not_found = [
-                a for a in input_.agent_ids if a not in found
-            ]
-            status = ResponseStatus(
-                404, f"Recipient(s) not found: {not_found}"
-            )
+    def send_message(self, sender, input_: SendMessageInput) -> SendMessageOutput:
+        recipients = [a for a in self.agents if a.name in input_.agent_names]
+        if not recipients or len(recipients) != len(input_.agent_names):
+            found = [a.name for a in recipients]
+            not_found = [a for a in input_.agent_names if a not in found]
+            status = ResponseStatus(404, f"Recipient(s) not found: {not_found}")
             return SendMessageOutput(status=status)
 
         msg = Message(

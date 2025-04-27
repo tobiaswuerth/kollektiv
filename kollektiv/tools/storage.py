@@ -38,6 +38,14 @@ class WriteFileOutput(pydantic.BaseModel):
     status: ResponseStatus
 
 
+class DeleteFileInput(pydantic.BaseModel):
+    file_name: str
+
+
+class DeleteFileOutput(pydantic.BaseModel):
+    status: ResponseStatus
+
+
 class Storage(Tool):
 
     def __init__(self, directory_path: str):
@@ -76,6 +84,13 @@ class Storage(Tool):
                 func=self.append_file,
             )
         )
+        self.register_function(
+            Function(
+                name="delete_file",
+                description="Delete a file.",
+                func=self.delete_file,
+            )
+        )
 
     def get_files(self, agent, input_: GetFilesInput) -> GetFilesOutput:
         files = os.listdir(self.directory_path)
@@ -100,3 +115,11 @@ class Storage(Tool):
         with open(target, "a", encoding="utf-8") as f:
             f.write(input_.content)
         return WriteFileOutput(status=RESPONSE_OK)
+
+    def delete_file(self, agent, input_: DeleteFileInput) -> DeleteFileOutput:
+        target = os.path.join(self.directory_path, input_.file_name)
+        assert self.directory_path in target, "Security check failed: Attempt to access outside of storage directory."
+        if not os.path.exists(target):
+            return DeleteFileOutput(status=RESPONSE_NOT_FOUND)
+        os.remove(target)
+        return DeleteFileOutput(status=RESPONSE_OK)

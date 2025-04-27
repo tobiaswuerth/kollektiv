@@ -36,7 +36,7 @@ class Agent:
         self.tool_invoke_history: list[tuple[str, str]] = []
 
     def __str__(self):
-        return f"Agent(name={self.name}, id={self.id}, role={self.role.name})"
+        return f"Agent(name={self.name}, role={self.role})"
 
     def __repr__(self):
         return str(self)
@@ -84,10 +84,8 @@ After each cycle, your chosen action(s) will be performed and the result(s) will
 Keep your answers short and concise.
 """
         for cycle in range(cycles):
+            prompt = self.process_phase_cycle(prompt, time, cycle, cycles, tools, retry_count)
             time += datetime.timedelta(minutes=time_delta_per_cycle)
-            prompt = self.process_phase_cycle(
-                prompt, time, cycle, cycles, tools, retry_count
-            )
 
         return prompt, time
 
@@ -106,10 +104,11 @@ Starting Cycle {cycle+1} of {cycles}.
 Current time: {time}.
 
 What are your next actions, {self.name}?
-If you don't want to change anything, respond with empty actions list.
+If you are done and do not need all cycles, respond with empty action list to finish.
 """
 
         for attempt in range(retry_count):
+            # print(f'Input: "{prompt}"')
             response = self.llm.generate(prompt, format=AgentResponse)
             prompt += f"""
 ---------------------------------
@@ -117,9 +116,9 @@ Processing your request...
 ---------------------------------
 System response:
 """
-            
+
             if len(response.actions) == 0:
-                prompt += f'Agent responded with empty action list, assuming done.\n'
+                prompt += f"Agent responded with empty action list, assuming done.\n"
                 return prompt
 
             fail_count = 0
@@ -129,7 +128,7 @@ System response:
                 fail_count += 1
                 message = f"[FAILED] {message}"
                 prompt += f"- {message}\n"
-                print(f" - NOK - {message}")
+                print(f" - {message}")
 
             for action in response.actions:
                 target = action.target
@@ -161,7 +160,7 @@ System response:
                     _handle_failure(result.status.message)
                     continue
 
-                prompt += f"- [OK] {action.target}\n"
+                prompt += f"- [OK] {action.target}, Input: {fin}, Output: {result}\n"
                 print(f" - OK")
                 self.memory.add_to_history(time, f"Performed: {action.target}")
 
@@ -190,7 +189,6 @@ Process:
 - 2.3. Update Planner
 - 3. Reflecting
 Current stage: 1. Planning
-Current time: {system_state.time}.
 
 Your goal is to plan out your day.
 In the next system tick, you will have the opportunity to act upon your plan.
@@ -242,7 +240,6 @@ Process:
 - 2.3. Update Planner
 - 3. Reflecting
 Current stage: 2.1. Acting
-Current time: {system_state.time}.
 
 Your are currently working on your tasks.
 The goal in this stage is to perform the actions you planned out in the previous stage (i.e. work on your tasks).
@@ -269,7 +266,6 @@ You now have the opportunity to perform one or more actions to get closer to you
         prompt += f"""
 ---------------------------------
 Current stage: 2.2. Message Updates to Team
-Current time: {time}.
 
 You have the opportunity to update and respond to your team about what you've done.
 """
@@ -288,7 +284,6 @@ You have the opportunity to update and respond to your team about what you've do
         prompt += f"""
 ---------------------------------
 Current stage: 2.3. Update Planner
-Current time: {time}.
 
 You have the opportunity to update your planner to reflect the actions you performed.
 You can add new tasks, delete completed tasks, or update existing tasks.

@@ -4,4 +4,4 @@ class Role:
         self.duties:list[str] = duties
         
     def __str__(self):
-        return f"Role(name={self.name}, duties={self.duties})"
+        return f"Role({self.name}, duties={self.duties})"

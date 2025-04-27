@@ -20,9 +20,6 @@ class Task(pydantic.BaseModel):
     status: str
     priority: str
 
-    def __str__(self):
-        return f"Task({self.unique_name})"
-
 
 class TaskEncoder(JSONEncoder):
     def default(self, obj):
@@ -48,20 +45,23 @@ class TaskDecoder(JSONDecoder):
 class GetTasksInput(pydantic.BaseModel):
     pass
 
-    def __str__(self):
-        return f"GetTasksInput"
-
 
 class GetTasksOutput(pydantic.BaseModel):
     status: ResponseStatus
     tasks: Optional[list["Task"]]
 
 
+class GetTaskOfOthersInput(pydantic.BaseModel):
+    agent_name: str
+
+
+class GetTaskOfOthersOutput(pydantic.BaseModel):
+    status: ResponseStatus
+    tasks: Optional[list["Task"]]
+
+
 class UpdateTaskInput(pydantic.BaseModel):
     task: Task
-
-    def __str__(self):
-        return f"UpdateTaskInput(task={self.task})"
 
 
 class UpdateTaskOutput(pydantic.BaseModel):
@@ -70,9 +70,6 @@ class UpdateTaskOutput(pydantic.BaseModel):
 
 class DeleteTaskInput(pydantic.BaseModel):
     unique_name: str
-
-    def __str__(self):
-        return f"DeleteTaskInput(unique_name={self.unique_name})"
 
 
 class DeleteTaskOutput(pydantic.BaseModel):
@@ -98,6 +95,14 @@ class Planner(Tool):
         )
         self.register_function(
             Function(
+                name="get_task_of_others",
+                description="Get a list of all pending tasks of other agents.",
+                func=self.get_tasks_of_others,
+            )
+        )
+
+        self.register_function(
+            Function(
                 name="update_task",
                 description="Create/Update a task.",
                 func=self.update_task,
@@ -111,47 +116,55 @@ class Planner(Tool):
             )
         )
 
-    def get_file_path(self, agent_id: int) -> str:
-        return os.path.join(self.output_dir, f"tasks_{agent_id}.json")
+    def _get_file_path(self, name: str) -> str:
+        return os.path.join(self.output_dir, f"tasks_{name.lower()}.json")
 
-    def load_state(self, path: str) -> dict:
+    def _load_state(self, path: str) -> dict:
         with open(path, "r", encoding="utf-8") as f:
             return json.load(f, cls=TaskDecoder)
 
-    def save_state(self, path: str, state: dict) -> None:
+    def _save_state(self, path: str, state: dict) -> None:
         with open(path, "w", encoding="utf-8") as f:
             json.dump(state, f, indent=4, cls=TaskEncoder)
 
     def get_tasks(self, agent, input_: GetTasksInput) -> GetTasksOutput:
-        file_path = self.get_file_path(agent.name)
+        file_path = self._get_file_path(agent.name)
         if not os.path.exists(file_path):
             return GetTasksOutput(status=RESPONSE_OK, tasks=[])
 
-        state = self.load_state(file_path)
+        state = self._load_state(file_path)
         return GetTasksOutput(status=RESPONSE_OK, tasks=state)
 
+    def get_tasks_of_others(self, agent, input_: GetTaskOfOthersInput) -> GetTaskOfOthersOutput:
+        file_path = self._get_file_path(input_.agent_name)
+        if not os.path.exists(file_path):
+            return GetTaskOfOthersOutput(status=RESPONSE_OK, tasks=[])
+
+        state = self._load_state(file_path)
+        return GetTaskOfOthersOutput(status=RESPONSE_OK, tasks=state)
+
     def update_task(self, agent, input_: UpdateTaskInput) -> UpdateTaskOutput:
-        file_path = self.get_file_path(agent.name)
-        state = [] if not os.path.exists(file_path) else self.load_state(file_path)
+        file_path = self._get_file_path(agent.name)
+        state = [] if not os.path.exists(file_path) else self._load_state(file_path)
 
         found_existing = [t for t in state if t.unique_name == input_.task.unique_name]
         if found_existing:
             state.remove(found_existing[0])
 
         state.append(input_.task)
-        self.save_state(file_path, state)
+        self._save_state(file_path, state)
         return UpdateTaskOutput(status=RESPONSE_OK)
 
     def delete_task(self, agent, input_: DeleteTaskInput) -> DeleteTaskOutput:
-        file_path = self.get_file_path(agent.name)
+        file_path = self._get_file_path(agent.name)
         if not os.path.exists(file_path):
             return DeleteTaskOutput(status=RESPONSE_NOT_FOUND)
 
-        state = self.load_state(file_path)
+        state = self._load_state(file_path)
         found_existing = [t for t in state if t.unique_name == input_.unique_name]
         if not found_existing:
             return DeleteTaskOutput(status=RESPONSE_NOT_FOUND)
 
         state.remove(found_existing[0])
-        self.save_state(file_path, state)
+        self._save_state(file_path, state)
         return DeleteTaskOutput(status=RESPONSE_OK)
