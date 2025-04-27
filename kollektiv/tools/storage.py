@@ -77,11 +77,11 @@ class Storage(Tool):
             )
         )
 
-    def get_files(self, agent_id: int, input_: GetFilesInput) -> GetFilesOutput:
+    def get_files(self, agent, input_: GetFilesInput) -> GetFilesOutput:
         files = os.listdir(self.directory_path)
         return GetFilesOutput(status=RESPONSE_OK, files=files)
 
-    def read_file(self, agent_id: int, input_: ReadFileInput) -> ReadFileOutput:
+    def read_file(self, agent, input_: ReadFileInput) -> ReadFileOutput:
         target = os.path.join(self.directory_path, input_.file_name)
         if not os.path.exists(target):
             return ReadFileOutput(status=RESPONSE_NOT_FOUND, content=None)
@@ -89,7 +89,7 @@ class Storage(Tool):
             content = f.read()
         return ReadFileOutput(status=RESPONSE_OK, content=content)
 
-    def write_file(self, agent_id: int, input_: WriteFileInput) -> WriteFileOutput:
+    def write_file(self, agent, input_: WriteFileInput) -> WriteFileOutput:
         target = os.path.join(self.directory_path, input_.file_name)
         with open(target, "w", encoding="utf-8") as f:
             f.write(input_.content)

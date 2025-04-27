@@ -29,10 +29,7 @@ class Function:
         params = list(sig.parameters.values())
         assert (
             len(params) == 2
-        ), "func must take exactly two argument (besides self if method): [agent_id:int, input_: pydantic.BaseModel]"
-        assert (
-            params[0].annotation == int
-        ), "First argument must be of type int (agent_id)"
+        ), "func must take exactly two argument (besides self if method): [agent:Agent, input_: pydantic.BaseModel]"
 
         hints = get_type_hints(func)
         type_input = hints.get(params[1].name)
@@ -51,6 +48,9 @@ class Function:
         self.func_TOut = type_return
         self.func = func
 
+    def __str__(self):
+        return f"Function('{self.name})"
+
 
 class Tool:
 
@@ -58,7 +58,7 @@ class Tool:
         self.name = name
         self.description = description
         self.functions = {}
-        self.system_state = {}
+        self.system_state = None
 
     def register_function(self, func: Function):
         if not isinstance(func, Function):
@@ -81,5 +81,5 @@ class Tool:
             ],
         }
 
-    def update(self, state: dict):
+    def update_system_state(self, state: dict):
         self.system_state = state

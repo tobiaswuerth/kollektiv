@@ -1,4 +1,6 @@
 import pydantic
+from dataclasses import dataclass
+import datetime
 
 from .tool import (
     Tool,
@@ -7,6 +9,13 @@ from .tool import (
     RESPONSE_OK,
 )
 
+
+@dataclass
+class Message:
+    timestamp: datetime.datetime
+    sender: object
+    recipients: list[str]
+    content: str
 
 class SendMessageInput(pydantic.BaseModel):
     agent_ids: list[int]
@@ -35,23 +44,29 @@ class Messenger(Tool):
         )
 
     def send_message(
-        self, agent_id: int, input_: SendMessageInput
+        self, agent, input_: SendMessageInput
     ) -> SendMessageOutput:
-        sender = [a for a in self.agents if a.id == agent_id][0]
+        sender = [a for a in self.agents if a.id == agent.id][0]
         assert sender, "Sender not found"
 
-        receiver = [a for a in self.agents if a.id in input_.agent_ids]
-        if not receiver or len(receiver) != len(input_.agent_ids):
-            receivers_found = [a.id for a in receiver]
-            receivers_not_found = [
-                a for a in input_.agent_ids if a not in receivers_found
+        recipients = [a for a in self.agents if a.id in input_.agent_ids]
+        if not recipients or len(recipients) != len(input_.agent_ids):
+            found = [a.id for a in recipients]
+            not_found = [
+                a for a in input_.agent_ids if a not in found
             ]
             status = ResponseStatus(
-                404, f"Receiver(s) not found: {receivers_not_found}"
+                404, f"Recipient(s) not found: {not_found}"
             )
             return SendMessageOutput(status=status)
 
-        message = f'From {sender} received at time {self.system_state['time']}:\n"{input_.message}"'
-        for r in receiver:
-            r.inbox.append(message)
+        msg = Message(
+            timestamp=self.system_state.time,
+            sender=sender,
+            recipients=[a.name for a in recipients],
+            content=input_.message,
+        )
+
+        for r in recipients:
+            r.inbox.append(msg)
         return SendMessageOutput(status=RESPONSE_OK)
