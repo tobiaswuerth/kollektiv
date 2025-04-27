@@ -21,7 +21,7 @@ class LLMClient:
                 format=format.model_json_schema() if format else None,
                 stream=False,
                 options={
-                    "num_predict": num_predict,
+                    # "num_predict": num_predict,
                     "temperature": 0.5,
                     "top_p": 0.9,
                     "num_ctx": 10000,

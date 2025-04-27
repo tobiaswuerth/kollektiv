@@ -136,7 +136,7 @@ System response:
 
                 parts = target.split(".")
                 if len(parts) != 2:
-                    _handle_failure(f"Invalid target: {target}")
+                    _handle_failure(f"Invalid tool call: {target}")
                     continue
 
                 tool_name, function_name = parts
