@@ -24,7 +24,8 @@ class DecisionNode:
     @property
     def f_cond_paths(self):
         def conditional_path_func(state):
-            return state["messages"][-1].content
+            assert 'path' in state, "State must contain 'path' key"
+            return state["path"]
 
         destinations = tuple(self.route_map.values())
         conditional_path_func.__annotations__["return"] = Literal[destinations]
@@ -64,9 +65,9 @@ class DecisionNode:
                     new_msgs.append(self.invalid_option)
                     continue
 
-                new_msgs.append(SystemMessage(self.route_map[parsed_response.decision]))
                 return {
                     "messages": new_msgs,
+                    "path": self.route_map[parsed_response.decision],
                 }
             except Exception:
                 new_msgs.append(self.invalid_option)
