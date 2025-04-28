@@ -1,6 +1,6 @@
-from typing import Annotated
+from typing import Annotated, Literal
 from pydantic import BaseModel, Field
-from typing_extensions import TypedDict
+from typing_extensions import TypedDict 
 
 from langchain.chat_models import init_chat_model
 from langchain_community.tools import DuckDuckGoSearchRun
@@ -102,38 +102,42 @@ class System:
     def build_graph(self):
         builder = StateGraph(State)
 
+        # Phase 1: Research Phase
+
+        builder.add_edge(START, "instructions")
         builder.add_node("instructions", self.chatbot)
+        builder.add_edge("instructions", "websearch")
         builder.add_node("websearch", ToolNode(tools=[self.search]))
+        builder.add_edge("websearch", "websearch_msg")
         builder.add_node("websearch_msg", MessageNode((
             "Now that you have the result, would you like to search the internet for more information "
             "or are you confident you have enough information to start breaking down the problem?"
             "If you decide on needs_more_research, you will be able to search the internet again. "
             "If you decide on finish_research_phase, you will be able to start breaking down the problem. "
         )))
-        builder.add_node("decide_more_research", DecisionNode(self.llm,
+        builder.add_edge("websearch_msg", "decide_more_research")
+
+        n_dmr = DecisionNode(self.llm,
             decision_routes={
                 "needs_more_research": "websearch",
                 "finish_research_phase": END,
             }
-        ))
-
-        builder.add_edge(START, "instructions")
-        builder.add_edge("instructions", "websearch")
-        builder.add_edge("websearch", "websearch_msg")
-
-        builder.add_edge("websearch_msg", "decide_more_research")
-        builder.add_conditional_edges("decide_more_research",
-            lambda state: state["messages"][-1].content,
         )
+        builder.add_node("decide_more_research", n_dmr)
+        builder.add_conditional_edges("decide_more_research", n_dmr.f_cond_paths)
 
+        # Phase 2: Breaking down the problem
+        # todo
+
+        # Finalize
         return builder.compile(
             checkpointer=self.memory,
         )
 
     def run(self):
         graph = self.build_graph()
-        # visualize_graph(graph)
-        # raise
+        visualize_graph(graph)
+        raise
         user_input = (
             "You will be given a goal and your task is to make a plan to achieve that goal. "
             "Your will break the problem down into smaller parts. "

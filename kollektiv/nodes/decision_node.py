@@ -1,3 +1,4 @@
+from typing import Literal
 from langchain_core.language_models import BaseChatModel
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_core.messages import SystemMessage
@@ -21,6 +22,15 @@ class DecisionNode:
         self.retry: int = retry
 
     @property
+    def f_cond_paths(self):
+        def conditional_path_func(state):
+            return state["messages"][-1].content
+
+        paths = tuple(self.decision_routes.values())
+        conditional_path_func.__annotations__['return'] = Literal[paths]   
+        return conditional_path_func
+
+    @property
     def invalid_option(self):
         return SystemMessage((
             f"!! SYSTEM ERROR - INVALID RESPONSE FORMAT !!\n"
@@ -33,10 +43,10 @@ class DecisionNode:
 
         for _ in range(self.retry):
             new_messages.append(SystemMessage(content=(
-                "You must decide now how you want to proceed."
-                f"Your decision MUST be one of these options: [ {', '.join(self.decision_routes)} ]\n"
+                "You must decide now how you want to proceed. "
+                f"Your decision MUST be one of these options:\n[ {', '.join(self.decision_routes)} ]\n"
                 "Respond with a structured JSON output according to this format:\n"
-                f"{parser.get_format_instructions()}\n"
+                f"{parser.get_format_instructions()}"
             )))
             
             response = self.llm.invoke(state["messages"] + new_messages)
@@ -57,3 +67,5 @@ class DecisionNode:
                 continue
 
         raise ValueError("DecisionNode: Max retries exceeded.")
+    
+    
