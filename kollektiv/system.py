@@ -15,7 +15,7 @@ from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.types import Command, interrupt
 
-from .nodes import DecisionNode, MessageNode
+from .nodes import DecisionNode, InfoNode, ChatNode
 
 
 class CreateNode(BaseModel):
@@ -77,11 +77,6 @@ class System:
         self.config = {"configurable": {"thread_id": "1"}}
         self.printed_messages = 0
 
-    def chatbot(self, state: State):
-        message = self.llm_with_tools.invoke(state["messages"])
-        assert len(message.tool_calls) <= 1
-        return {"messages": [message]}
-
     def stream_graph_updates(self, graph: CompiledStateGraph, user_input: str):
         events = graph.stream(
             {"messages": [{"role": "user", "content": user_input}]},
@@ -105,17 +100,17 @@ class System:
         # Phase 1: Research Phase
 
         builder.add_edge(START, "instructions")
-        builder.add_node("instructions", self.chatbot)
+        builder.add_node("instructions", ChatNode(self.llm_with_tools))
         builder.add_edge("instructions", "websearch")
         builder.add_node("websearch", ToolNode(tools=[self.search]))
-        builder.add_edge("websearch", "websearch_msg")
-        builder.add_node("websearch_msg", MessageNode((
+        builder.add_edge("websearch", "websearch_info")
+        builder.add_node("websearch_info", InfoNode((
             "Now that you have the result, would you like to search the internet for more information "
             "or are you confident you have enough information to start breaking down the problem?"
             "If you decide on needs_more_research, you will be able to search the internet again. "
             "If you decide on finish_research_phase, you will be able to start breaking down the problem. "
         )))
-        builder.add_edge("websearch_msg", "decide_more_research")
+        builder.add_edge("websearch_info", "decide_more_research")
 
         n_dmr = DecisionNode(self.llm,
             decision_routes={
