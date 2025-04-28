@@ -1,59 +1,54 @@
 from typing import Annotated
+from pydantic import BaseModel, Field
 from typing_extensions import TypedDict
-from langgraph.graph import StateGraph, START, END
-from langgraph.graph.message import add_messages
+
 from langchain.chat_models import init_chat_model
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_core.tools import InjectedToolCallId, tool
+from langchain_core.messages import ToolMessage, HumanMessage, SystemMessage, AIMessage
+from langchain.output_parsers import RetryOutputParser
+
+from langgraph.graph import StateGraph, START, END
+from langgraph.graph.state import CompiledStateGraph
+from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.types import Command, interrupt
-from langchain_core.messages import ToolMessage
+
+from .nodes import DecisionNode, MessageNode
+
+
+class CreateNode(BaseModel):
+    attached_to: int = Field(description="The ID of the node to attach to")
+    node_title: str = Field(description="The title of the node")
+
+
+class DeleteNode(BaseModel):
+    node_id: int = Field(description="The ID of the node to delete")
+
+
+class UpdateNode(BaseModel):
+    node_id: int = Field(description="The ID of the node to update")
+    new_title: str = Field(description="The new title of the node")
+
+
+class Node(BaseModel):
+    id: int = Field(
+        default_factory=lambda self: id(self), description="The ID of the node"
+    )
+    title: str = Field(description="The title of the node")
+    children: list["Node"] = Field(
+        default_factory=list, description="The children of the node"
+    )
+
+
+problem_tree = Node(
+    title="Problem",
+)
 
 
 class State(TypedDict):
-    # Messages have the type "list". The `add_messages` function
-    # in the annotation defines how this state key should be updated
-    # (in this case, it appends messages to the list, rather than overwriting them)
     messages: Annotated[list, add_messages]
-    name: str
-    birthday: str
-
-
-# Note that because we are generating a ToolMessage for a state update, we
-# generally require the ID of the corresponding tool call. We can use
-# LangChain's InjectedToolCallId to signal that this argument should not
-# be revealed to the model in the tool's schema.
-@tool(description="Requests human assistance")
-def human_assistance(name: str, birthday: str, tool_call_id: Annotated[str, InjectedToolCallId]) -> str:
-    """Request assistance from a human."""
-    human_response = interrupt(
-        {
-            "question": "Is this correct?",
-            "name": name,
-            "birthday": birthday,
-        },
-    )
-    # If the information is correct, update the state as-is.
-    if human_response.get("correct", "").lower().startswith("y"):
-        verified_name = name
-        verified_birthday = birthday
-        response = "Correct"
-    # Otherwise, receive information from the human reviewer.
-    else:
-        verified_name = human_response.get("name", name)
-        verified_birthday = human_response.get("birthday", birthday)
-        response = f"Made a correction: {human_response}"
-
-    # This time we explicitly update the state with a ToolMessage inside
-    # the tool.
-    state_update = {
-        "name": verified_name,
-        "birthday": verified_birthday,
-        "messages": [ToolMessage(response, tool_call_id=tool_call_id)],
-    }
-    # We return a Command object in the tool to update our state.
-    return Command(update=state_update)
 
 
 def visualize_graph(graph):
@@ -72,7 +67,6 @@ class System:
         self.search = DuckDuckGoSearchRun()
         self.tools = [
             self.search,
-            human_assistance,
         ]
 
         # self.llm = init_chat_model("ollama:mistral-nemo")
@@ -80,66 +74,80 @@ class System:
         self.llm_with_tools = self.llm.bind_tools(self.tools)
 
         self.memory = MemorySaver()
+        self.config = {"configurable": {"thread_id": "1"}}
+        self.printed_messages = 0
 
-    def run(self):
+    def chatbot(self, state: State):
+        message = self.llm_with_tools.invoke(state["messages"])
+        assert len(message.tool_calls) <= 1
+        return {"messages": [message]}
 
-        def chatbot(state: State):
-            message = self.llm_with_tools.invoke(state["messages"])
-            assert len(message.tool_calls) <= 1
-            return {"messages": [message]}
-
-        # The argument is the function or object that will be called whenever
-        # the node is used.
-        graph_builder = StateGraph(State)
-
-        graph_builder.add_node("chatbot", chatbot)
-        graph_builder.add_edge(START, "chatbot")
-
-        tool_node = ToolNode(tools=self.tools)
-        graph_builder.add_node("tools", tool_node)
-
-        graph_builder.add_conditional_edges(
-            "chatbot",
-            tools_condition,
+    def stream_graph_updates(self, graph: CompiledStateGraph, user_input: str):
+        events = graph.stream(
+            {"messages": [{"role": "user", "content": user_input}]},
+            self.config,
+            stream_mode="values",
         )
-        graph_builder.add_edge("tools", "chatbot")  # retour
-        graph = graph_builder.compile(
+        for event in events:
+            if "messages" in event:
+                for i, message in enumerate(event["messages"]):
+                    if i < self.printed_messages:
+                        continue
+                    self.printed_messages += 1
+                    message.pretty_print()
+            else:
+                print(event)
+
+
+    def build_graph(self):
+        builder = StateGraph(State)
+
+        builder.add_node("instructions", self.chatbot)
+        builder.add_node("websearch", ToolNode(tools=[self.search]))
+        builder.add_node("websearch_msg", MessageNode((
+            "Now that you have the result, would you like to search the internet for more information "
+            "or are you confident you have enough information to start breaking down the problem?"
+            "If you decide on needs_more_research, you will be able to search the internet again. "
+            "If you decide on finish_research_phase, you will be able to start breaking down the problem. "
+        )))
+        builder.add_node("decide_more_research", DecisionNode(self.llm,
+            decision_routes={
+                "needs_more_research": "websearch",
+                "finish_research_phase": END,
+            }
+        ))
+
+        builder.add_edge(START, "instructions")
+        builder.add_edge("instructions", "websearch")
+        builder.add_edge("websearch", "websearch_msg")
+
+        builder.add_edge("websearch_msg", "decide_more_research")
+        builder.add_conditional_edges("decide_more_research",
+            lambda state: state["messages"][-1].content,
+        )
+
+        return builder.compile(
             checkpointer=self.memory,
         )
 
+    def run(self):
+        graph = self.build_graph()
         # visualize_graph(graph)
-
-        config = {"configurable": {"thread_id": "1"}}
-
-        def stream_graph_updates(user_input: str):
-            events = graph.stream(
-                {"messages": [{"role": "user", "content": user_input}]},
-                config,
-                stream_mode="values",
-            )
-            for event in events:
-                if "messages" in event:
-                    event["messages"][-1].pretty_print()
-                else:
-                    print(event)
-
-
+        # raise
         user_input = (
-            "Lookup when LangGraph was released. "
-            "When you have the answer, pass your best guess to the human_assistance tool for review. "
-            "Do not ask for confirmation and do use the tools required."
+            "You will be given a goal and your task is to make a plan to achieve that goal. "
+            "Your will break the problem down into smaller parts. "
+            "Each part may be divided into smaller parts, "
+            "until each element consists only of the smallest possible action. "
+            ""
+            "Your goal is: Write a story. "
+            "The story must have 10 chapters and each chapter consist of around 1000 words. "
+            "The story must be a fantasy sci-fi story with a novel plot in a post-apocalyptic world. "
+            "The required output are 10 individual markdown files, one for each chapter. "
+            "The files must be named chapter_1.md, chapter_2.md, etc. "
+            "The story must further be consistent, coherent and following a logical structure. "
+            "Generally in this interaction, keep your answers short and concise. "
+            "Your first task is to search the internet for potential approaches on how people go about it. "
+            "Use the search engine to find relevant information. "
         )
-        stream_graph_updates(user_input)
-
-        # while True:
-        #     try:
-
-        #         user_input = input("User: ")
-        #         if user_input.lower() in ["quit", "exit", "q"]:
-        #             print("Goodbye!")
-        #             break
-
-        #         stream_graph_updates(user_input)
-        #     except Exception as e:
-        #         print(f"Error: {e}")
-        #         break
+        self.stream_graph_updates(graph, user_input)
