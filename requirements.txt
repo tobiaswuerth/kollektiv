@@ -8,3 +8,4 @@ langsmith
 langchain[ollama]
 langchain-community
 duckduckgo-search
+pygraphviz

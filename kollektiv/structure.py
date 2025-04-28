@@ -2,7 +2,7 @@ from typing import Type
 from pydantic import BaseModel, Field
 import json
 from langchain_core.tools import BaseTool
-
+from langchain_core.messages import SystemMessage
 
 class CreateRoot(BaseModel):
     node_title: str = Field(description="The title of the root node")
@@ -22,6 +22,7 @@ class CreateNodeRow(BaseModel):
             "They will be attached to the active node."
         )
     )
+
 
 class CreateNode(RowNode):
     attached_to: int = Field(description="The ID of the node to attach to")
@@ -60,6 +61,26 @@ class ProblemStructurizer:
                 return found_node
         return None
 
+    def get_activation_node(self, node_id: int):
+        def _activate_node(state) -> dict:
+            assert self.root is not None, "Root node does not exist"
+
+            node = self.find_node(node_id, [self.root])
+            assert node is not None, f"Node with ID {node_id} not found."
+
+            self.active_node = node
+            return {
+                "messages": [
+                    SystemMessage(
+                        (
+                            f"Node with ID {node_id} activated successfully.\n"
+                            f"{self.structure_description}"
+                        )
+                    )
+                ]
+            }
+        return _activate_node
+
     @property
     def structure_description(self) -> str:
         assert self.root is not None, "Root node does not exist"
@@ -81,24 +102,22 @@ class ProblemStructurizer:
             args_schema: Type[BaseModel] = CreateRoot
 
             def _run(self, **kwargs) -> str:
-                return parent._create_root(CreateRoot(**kwargs))
+                node = CreateRoot(**kwargs)
+                assert parent.root is None, "Root node already exists"
+
+                parent.root = Node(
+                    title=node.node_title,
+                    execution_order=0,
+                )
+                parent.active_node = parent.root
+
+                return (
+                    f"Root node created successfully.\n"
+                    f"{parent.structure_description}\n"
+                    f"The root node is now the active node."
+                )
 
         return CreateRootTool()
-
-    def _create_root(self, node: CreateRoot) -> str:
-        assert self.root is None, "Root node already exists"
-
-        self.root = Node(
-            title=node.node_title,
-            execution_order=0,
-        )
-        self.active_node = self.root
-
-        return (
-            f"Root node created successfully.\n"
-            f"{self.structure_description}\n"
-            f"The root node is now the active node."
-        )
 
     @property
     def create_node_row(self):
@@ -106,29 +125,30 @@ class ProblemStructurizer:
 
         class CreateNodeRowTool(BaseTool):
             name: str = "create_node_row"
-            description: str = "Creates a sequence of nodes and attaches them to the active node"
+            description: str = (
+                "Creates a sequence of nodes and attaches them to the active node"
+            )
             args_schema: Type[BaseModel] = CreateNodeRow
 
             def _run(self, **kwargs) -> str:
-                return parent._create_node_row(CreateNodeRow(**kwargs))
+                node = CreateNodeRow(**kwargs)
+                assert parent.root is not None, "Root node does not exist"
+
+                if parent.active_node is None:
+                    return f"[ERROR] 400: No active node. Please activate one first"
+
+                for child in node.nodes:
+                    new_node = Node(
+                        title=child.node_title,
+                        execution_order=child.execution_order,
+                    )
+                    parent.active_node.children.append(new_node)
+
+                return (
+                    f"Nodes created successfully.\n" f"{parent.structure_description}"
+                )
 
         return CreateNodeRowTool()
-    
-    def _create_node_row(self, node: CreateNodeRow) -> str:
-        assert self.root is not None, "Root node does not exist"
-
-        if self.active_node is None:
-            return f"[ERROR] 400: No active node. Please activate one first"
-
-        for child in node.nodes:
-            new_node = Node(
-                title=child.node_title,
-                execution_order=child.execution_order,
-            )
-            self.active_node.children.append(new_node)
-
-        return f"Nodes created successfully.\n" f"{self.structure_description}"
-
 
     @property
     def create_node(self):
@@ -140,24 +160,22 @@ class ProblemStructurizer:
             args_schema: Type[BaseModel] = CreateNode
 
             def _run(self, **kwargs) -> str:
-                return parent._create_node(CreateNode(**kwargs))
+                node = CreateNode(**kwargs)
+                assert parent.root is not None, "Root node does not exist"
+
+                parent_node = parent.find_node(node.attached_to, [parent.root])
+                if parent_node is None:
+                    return f"[ERROR] 404: Node with ID {node.attached_to} not found."
+
+                new_node = Node(
+                    title=node.node_title,
+                    execution_order=node.execution_order,
+                )
+                parent_node.children.append(new_node)
+
+                return f"Node created successfully.\n" f"{parent.structure_description}"
 
         return CreateNodeTool()
-
-    def _create_node(self, node: CreateNode) -> str:
-        assert self.root is not None, "Root node does not exist"
-
-        parent_node = self.find_node(node.attached_to, [self.root])
-        if parent_node is None:
-            return f"[ERROR] 404: Node with ID {node.attached_to} not found."
-
-        new_node = Node(
-            title=node.node_title,
-            execution_order=node.execution_order,
-        )
-        parent_node.children.append(new_node)
-
-        return f"Node created successfully.\n" f"{self.structure_description}"
 
     @property
     def update_node(self):
@@ -169,21 +187,19 @@ class ProblemStructurizer:
             args_schema: Type[BaseModel] = UpdateNode
 
             def _run(self, **kwargs) -> str:
-                return parent._update_node(UpdateNode(**kwargs))
+                node = UpdateNode(**kwargs)
+                assert parent.root is not None, "Root node does not exist"
+
+                node_to_update = parent.find_node(node.node_id, [parent.root])
+                if node_to_update is None:
+                    return f"[ERROR] 404: Node with ID {node.node_id} not found."
+
+                node_to_update.title = node.new_title
+                node_to_update.execution_order = node.new_execution_order
+
+                return f"Node updated successfully.\n" f"{parent.structure_description}"
 
         return UpdateNodeTool()
-
-    def _update_node(self, node: UpdateNode) -> str:
-        assert self.root is not None, "Root node does not exist"
-
-        node_to_update = self.find_node(node.node_id, [self.root])
-        if node_to_update is None:
-            return f"[ERROR] 404: Node with ID {node.node_id} not found."
-
-        node_to_update.title = node.new_title
-        node_to_update.execution_order = node.new_execution_order
-
-        return f"Node updated successfully.\n" f"{self.structure_description}"
 
     @property
     def delete_node(self):
@@ -195,21 +211,19 @@ class ProblemStructurizer:
             args_schema: Type[BaseModel] = DeleteNode
 
             def _run(self, **kwargs) -> str:
-                return parent._delete_node(DeleteNode(**kwargs))
+                node = DeleteNode(**kwargs)
+                assert parent.root is not None, "Root node does not exist"
+
+                node_to_delete = parent.find_node(node.node_id, [parent.root])
+                if node_to_delete is None:
+                    return f"[ERROR] 404: Node with ID {node.node_id} not found."
+                if node_to_delete == parent.root:
+                    return f"[ERROR] 400: Cannot delete the root node."
+
+                parent_node = parent.find_node(node.node_id, [parent.root])
+                if parent_node:
+                    parent_node.children.remove(node_to_delete)
+
+                return f"Node deleted successfully.\n" f"{parent.structure_description}"
 
         return DeleteNodeTool()
-
-    def _delete_node(self, node: DeleteNode) -> str:
-        assert self.root is not None, "Root node does not exist"
-
-        node_to_delete = self.find_node(node.node_id, [self.root])
-        if node_to_delete is None:
-            return f"[ERROR] 404: Node with ID {node.node_id} not found."
-        if node_to_delete == self.root:
-            return f"[ERROR] 400: Cannot delete the root node."
-
-        parent_node = self.find_node(node.node_id, [self.root])
-        if parent_node:
-            parent_node.children.remove(node_to_delete)
-
-        return f"Node deleted successfully.\n" f"{self.structure_description}"

@@ -18,11 +18,12 @@ class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 
-def visualize_graph(graph):
+def visualize_graph(graph:CompiledStateGraph):
     try:
-        graph.get_graph().draw_mermaid_png(output_file_path="output/graph.png")
+        graph.get_graph().draw_png(
+            output_file_path="output/graph.png",
+        )
         from PIL import Image
-
         img = Image.open("output/graph.png")
         img.show()
     except Exception as e:
@@ -107,6 +108,64 @@ class System:
             checkpointer=self.memory,
         )
 
+    def build_graph_tree_layer1(self):
+        builder = StateGraph(State)
+
+        builder.add_edge(START, "info_row")
+        builder.add_node("info_row", InfoNode(
+                (
+                    "Now that you have the root node, you can start creating child nodes. "
+                    "You will be able to create a sequence of nodes and attach them to the active node. "
+                    "I will guide you through the whole process. "
+                    "You will only have to provide the information requested in small bits. "
+                    "The final result will be a tree structure, where each node represents a part of the problem. "
+                    "We start now with the first layer of child nodes. Please use the provided tool to create the child nodes. "
+                    "Now, think, and use the tool to break down the active node into 3-5 child nodes. "
+                )
+            ),
+        )
+        
+        # assume active node is root
+        builder.add_edge("info_row", "get_create_node_row")
+        builder.add_node("get_create_node_row", ChatNode(self.llm.bind_tools([self.structurizer.create_node_row])))
+        builder.add_edge("get_create_node_row", "create_node_row")
+        builder.add_node("create_node_row", ToolNode(tools=[self.structurizer.create_node_row]))
+        builder.add_edge("create_node_row", END)
+        
+        # Finalize
+        return builder.compile(
+            checkpointer=self.memory,
+        )
+    
+    def build_graph_tree_layer2(self):
+        builder = StateGraph(State)
+
+        nodes = self.structurizer.active_node.children
+        starts = [START] + [f"create_node_row_{i}" for i in range(len(nodes)-1)]
+
+        for ni, (node, start) in enumerate(zip(nodes, starts)):
+            builder.add_edge(start, f'activate_node_{ni}')
+            builder.add_node(f'activate_node_{ni}', self.structurizer.get_activation_node(node.id))
+            builder.add_edge(f'activate_node_{ni}', f'info_row_{ni}')
+            builder.add_node(f'info_row_{ni}', InfoNode(
+                (
+                    f"Now that you have the node {node.title} active, you can start creating child nodes. "
+                    f"You will be able to create a sequence of nodes and attach them to the active node. "
+                    "Now, think, and use the tool to break down the active node into 3-5 child nodes. "
+                )
+            ))
+            builder.add_edge(f'info_row_{ni}', f'get_create_node_row_{ni}')
+            builder.add_node(f'get_create_node_row_{ni}', ChatNode(self.llm.bind_tools([self.structurizer.create_node_row])))
+            builder.add_edge(f'get_create_node_row_{ni}', f'create_node_row_{ni}')
+            builder.add_node(f'create_node_row_{ni}', ToolNode(tools=[self.structurizer.create_node_row]))
+        
+        builder.add_edge(f'create_node_row_{len(nodes)-1}', END)
+        
+        # Finalize
+        return builder.compile(
+            checkpointer=self.memory,
+        )
+    
     def run(self):
         graph = self.build_graph_research_and_root()
         visualize_graph(graph)
@@ -122,3 +181,24 @@ class System:
             "Use the search engine to find relevant information. "
         )
         self.stream_graph_updates(graph, user_input)
+
+        # Phase 2: Breaking down the problem
+        graph = self.build_graph_tree_layer1()
+        visualize_graph(graph)
+        # raise
+        user_input = (
+            "Now that you have enough information, you can start breaking down the problem. "
+            "We will go through each layer of the tree and you break it down into smaller parts. "
+        )
+        self.stream_graph_updates(graph, user_input)
+
+        # Phase 3: Breaking down the problem further
+        graph = self.build_graph_tree_layer2()
+        visualize_graph(graph)
+        # raise
+        user_input = (
+            "We will go through each layer of the tree and you break it down into smaller parts. "
+        )
+        self.stream_graph_updates(graph, user_input)
+
+        print('done')
