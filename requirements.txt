@@ -1,2 +1,10 @@
-pydantic
+pillow
+
 ollama
+pydantic
+
+langgraph
+langsmith
+langchain[ollama]
+langchain-community
+duckduckgo-search
