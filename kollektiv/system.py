@@ -32,17 +32,12 @@ def visualize_graph(graph):
 class System:
     def __init__(self, goal: str):
         self.goal = goal
-        self.structurizer = ProblemStructurizer()
 
+        self.structurizer = ProblemStructurizer()
         self.search = DuckDuckGoSearchRun()
-        self.tools = [
-            self.search,
-            self.structurizer.create_root,
-        ]
 
         # self.llm = init_chat_model("ollama:mistral-nemo")
         self.llm = init_chat_model("ollama:mistral-small3.1:latest")
-        self.llm_with_tools = self.llm.bind_tools(self.tools)
 
         self.memory = MemorySaver()
         self.config = {"configurable": {"thread_id": "1"}}
@@ -55,16 +50,13 @@ class System:
             stream_mode="values",
         )
         for event in events:
-            if "messages" in event:
-                for i, message in enumerate(event["messages"]):
-                    if i < self.printed_messages:
-                        continue
-                    self.printed_messages += 1
-                    message.pretty_print()
-            else:
-                print(event)
+            for i, message in enumerate(event["messages"]):
+                if i < self.printed_messages:
+                    continue
+                self.printed_messages += 1
+                message.pretty_print()
 
-    def build_graph(self):
+    def build_graph_research_and_root(self):
         builder = StateGraph(State)
 
         # Phase 1: Research Phase
@@ -116,8 +108,8 @@ class System:
         )
 
     def run(self):
-        graph = self.build_graph()
-        # visualize_graph(graph)
+        graph = self.build_graph_research_and_root()
+        visualize_graph(graph)
         # raise
         user_input = (
             "You will be given a goal and your task is to make a plan to achieve that goal. "

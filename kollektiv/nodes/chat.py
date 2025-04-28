@@ -7,5 +7,4 @@ class ChatNode:
 
     def __call__(self, state) -> dict:
         message = self.llm.invoke(state["messages"])
-        assert len(message.tool_calls) <= 1
         return {"messages": [message]}
