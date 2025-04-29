@@ -49,7 +49,7 @@ class LLMClient:
                 options={
                     "temperature": 0.5,
                     "top_p": 0.9,
-                    # "num_ctx": 10000,
+                    "num_ctx": 4096,
                     "seed": random.randint(0, 2**30 - 1),
                 },
                 format=format.model_json_schema() if format else None,

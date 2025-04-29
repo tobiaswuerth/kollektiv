@@ -31,44 +31,46 @@ class System:
 
     def __init__(self, goal: str):
         self.goal = goal
+        self.llm = LLMClient(model_name="mistral-small3.1:latest")
 
     def run(self):
-        llm = LLMClient()
         history: list[Message] = [
             Message("system", assistant_priming).print(),
             Message("user", f"This is my goal:\n{self.goal}").print(),
         ]
 
-        rootM, history = llm.chat(
+        ###### Create Root node ######
+        rootM, _ = self.llm.chat(
             message="Create the root node for the task decomposition tree",
             message_history=history,
             format=NodeModel,
         )
         root: Node = rootM.to_node()
-        history.append(
-            Message("system", f"The root node is:\n{root.to_json()}").print()
-        )
 
-        nodeListM, history = llm.chat(
-            message="Your next step is to create child nodes indicating sub-steps of the task decomposition tree",
-            message_history=history,
-            format=NodeListModel,
-        )
-        nodeList: list[Node] = nodeListM.to_nodes()
-        root.add_children(nodeList)
+        l1_nodes = self.produce_layer([root], history)
+        l2_nodes = self.produce_layer(l1_nodes, history)
+        l3_nodes = self.produce_layer(l2_nodes, history)
 
-        history.append(Message("system", f"The tree now is:\n{root.to_json()}").print())
+        print("-" * 50)
+        print("Final tree:")
+        print(root.to_json())
 
-        for node in nodeList:
+    def produce_layer(self, nodes: list[Node], history: list[Message]) -> list[Node]:
+        root: Node = nodes[0].root
+        history = history.copy()
+        history.append(Message("system", f"The tree is now:\n{root.to_json()}").print())
+
+        new_nodes: list[Node] = []
+        for node in nodes:
             history_branch = history.copy()
             history_branch.append(
                 Message(
                     "system",
-                    f"@Assistant: You are now working on this node:\n{node.to_json()}",
+                    f"@Assistant: You are now working on this node: (only node + ancestor-line is shown) \n{node.to_json()}",
                 ).print()
             )
 
-            nodeListM, history_branch = llm.chat(
+            nodeListM, history_branch = self.llm.chat(
                 message="Your next step is to create child nodes indicating sub-steps of the active node you are working on",
                 message_history=history_branch,
                 format=NodeListModel,
@@ -76,7 +78,6 @@ class System:
 
             nodeList: list[Node] = nodeListM.to_nodes()
             node.add_children(nodeList)
+            new_nodes.extend(nodeList)
 
-        print("-"*50)
-        print("Final tree:")
-        print(root.to_json())
+        return new_nodes

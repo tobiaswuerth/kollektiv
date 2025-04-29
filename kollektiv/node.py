@@ -26,6 +26,18 @@ class Node:
         self.parent: Optional["Node"] = None
         self.children: list["Node"] = []
 
+    @property
+    def parents(self) -> list["Node"]:
+        if self.parent is None:
+            return []
+        return [self.parent] + self.parent.parents
+
+    @property
+    def root(self) -> "Node":
+        if self.parent is None:
+            return self
+        return self.parent.root
+
     def add_child(self, child: "Node"):
         self.children.append(child)
         child.parent = self
@@ -41,16 +53,6 @@ class Node:
     def find_node(self, node_id: int) -> Optional["Node"]:
         return find_node_recursive(self, node_id)
 
-    def siblings(self) -> list["Node"]:
-        if self.parent is None:
-            return []
-        return [child for child in self.parent.children if child != self]
-
-    def parents(self) -> list["Node"]:
-        if self.parent is None:
-            return []
-        return [self.parent] + self.parent.parents()
-
     def to_json(self, include_children=True, include_parents=True) -> dict:
         parent = (
             None
@@ -64,10 +66,7 @@ class Node:
         children = (
             "..."
             if not include_children
-            else [
-                child.to_json(include_children, False)
-                for child in self.children
-            ]
+            else [child.to_json(include_children, False) for child in self.children]
         )
 
         return {
