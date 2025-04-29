@@ -53,20 +53,24 @@ class Node:
     def find_node(self, node_id: int) -> Optional["Node"]:
         return find_node_recursive(self, node_id)
 
-    def to_json(self, include_children=True, include_parents=True) -> dict:
+    def to_json(self, include_parents=True, include_children=True) -> dict:
         parent = (
             None
             if self.parent is None
             else (
                 "..."
                 if not include_parents
-                else self.parent.to_json(include_children=False, include_parents=True)
+                else self.parent.to_json(include_parents=True, include_children=False)
             )
         )
         children = (
-            "..."
-            if not include_children
-            else [child.to_json(include_children, False) for child in self.children]
+            []
+            if len(self.children) == 0
+            else (
+                "..."
+                if not include_children
+                else [child.to_json(False, include_children) for child in self.children]
+            )
         )
 
         return {

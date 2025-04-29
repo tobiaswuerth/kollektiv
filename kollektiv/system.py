@@ -1,4 +1,4 @@
-from .llm import LLMClient, Message
+from .llm import LLMClient, Message, SystemMessage, UserMessage
 from .node import Node, NodeModel, NodeListModel
 
 
@@ -31,15 +31,18 @@ class System:
 
     def __init__(self, goal: str):
         self.goal = goal
-        self.llm = LLMClient(model_name="mistral-small3.1:latest")
+
+        self.llm = LLMClient(model_name="mistral-nemo:latest")
+        # self.llm = LLMClient(model_name="mistral-small3.1:latest")
+        # self.llm = LLMClient(model_name="llama3.3:latest")
+        # self.llm = LLMClient()
 
     def run(self):
         history: list[Message] = [
-            Message("system", assistant_priming).print(),
-            Message("user", f"This is my goal:\n{self.goal}").print(),
+            SystemMessage(assistant_priming).print(),
+            UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
-        ###### Create Root node ######
         rootM, _ = self.llm.chat(
             message="Create the root node for the task decomposition tree",
             message_history=history,
@@ -49,7 +52,7 @@ class System:
 
         l1_nodes = self.produce_layer([root], history)
         l2_nodes = self.produce_layer(l1_nodes, history)
-        l3_nodes = self.produce_layer(l2_nodes, history)
+        # l3_nodes = self.produce_layer(l2_nodes, history)
 
         print("-" * 50)
         print("Final tree:")
@@ -57,21 +60,27 @@ class System:
 
     def produce_layer(self, nodes: list[Node], history: list[Message]) -> list[Node]:
         root: Node = nodes[0].root
-        history = history.copy()
-        history.append(Message("system", f"The tree is now:\n{root.to_json()}").print())
 
         new_nodes: list[Node] = []
         for node in nodes:
             history_branch = history.copy()
             history_branch.append(
-                Message(
-                    "system",
-                    f"@Assistant: You are now working on this node: (only node + ancestor-line is shown) \n{node.to_json()}",
+                SystemMessage(
+                    (
+                        "@Assistant: You have been working on planning out the steps needed to achieve the goal.\n"
+                        "The full tree is currently like this:\n\n```\n"
+                        f"{root.to_json()}\n```\n\n"
+                        "You are now working on this node:\n\n```\n"
+                        f"{node.to_json(True, False)}\n```"
+                    )
                 ).print()
             )
 
             nodeListM, history_branch = self.llm.chat(
-                message="Your next step is to create child nodes indicating sub-steps of the active node you are working on",
+                message=(
+                    "Create a new set of child nodes for the node you are currently working on.\n"
+                    "The new nodes should be unique given the whole of the tree and fit its parent."
+                ),
                 message_history=history_branch,
                 format=NodeListModel,
             )

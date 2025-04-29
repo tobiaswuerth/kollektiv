@@ -24,6 +24,26 @@ class Message:
         return self
 
 
+class SystemMessage(Message):
+    def __init__(self, content: str) -> None:
+        super().__init__(role="system", content=content)
+
+
+class UserMessage(Message):
+    def __init__(self, content: str) -> None:
+        super().__init__(role="user", content=content)
+
+
+class AssistantMessage(Message):
+    def __init__(self, content: str) -> None:
+        super().__init__(role="assistant", content=content)
+
+
+class ToolMessage(Message):
+    def __init__(self, content: str) -> None:
+        super().__init__(role="tool", content=content)
+
+
 class LLMClient:
     def __init__(self, model_name: str = "phi4:latest") -> None:
         self.model_name = model_name
@@ -36,7 +56,7 @@ class LLMClient:
         format_retries: int = 3,
         verbose: bool = True,
     ) -> tuple[Message, list[Message]]:
-        user_message = Message("user", message).print(verbose)
+        user_message = UserMessage(message).print(verbose)
         message_history.append(user_message)
 
         model_input = message_history.copy()
@@ -55,7 +75,7 @@ class LLMClient:
                 format=format.model_json_schema() if format else None,
             )
             response = response.message.content
-            ai_message = Message("assistant", response).print(verbose)
+            ai_message = AssistantMessage(response).print(verbose)
 
             if format:
                 try:
@@ -63,12 +83,9 @@ class LLMClient:
                 except pydantic.ValidationError as e:
                     model_input.append(ai_message)
                     model_input.append(
-                        Message(
-                            role="system",
-                            content=(
-                                f"Validation error: {e}\n"
-                                f"Retry attempt {attempt + 1} of {format_retries}..."
-                            ),
+                        SystemMessage(
+                            f"Validation error: {e}\n"
+                            f"Retry attempt {attempt + 1} of {format_retries}..."
                         ).print(verbose)
                     )
                     continue
