@@ -1,6 +1,7 @@
 import ollama
 import pydantic
 import random
+from typing import Self
 
 from dataclasses import dataclass
 
@@ -13,10 +14,14 @@ class Message:
     def __str__(self) -> str:
         return f"{self.role}: {self.content}"
 
-    def pretty_print(self) -> None:
+    def print(self, do=True) -> Self:
+        if not do:
+            return self
+
         role = self.role.capitalize()
         print(f" {role} ".center(50, "="))
         print(self.content)
+        return self
 
 
 class LLMClient:
@@ -29,12 +34,10 @@ class LLMClient:
         message_history: list[Message] = [],
         format: pydantic.BaseModel = None,
         format_retries: int = 3,
-        print_result: bool = True,
+        verbose: bool = True,
     ) -> tuple[Message, list[Message]]:
-        user_message = Message(role="user", content=message)
+        user_message = Message("user", message).print(verbose)
         message_history.append(user_message)
-        if print_result:
-            user_message.pretty_print()
 
         model_input = message_history.copy()
 
@@ -52,7 +55,7 @@ class LLMClient:
                 format=format.model_json_schema() if format else None,
             )
             response = response.message.content
-            ai_message = Message(role="assistant", content=response)
+            ai_message = Message("assistant", response).print(verbose)
 
             if format:
                 try:
@@ -66,14 +69,9 @@ class LLMClient:
                                 f"Validation error: {e}\n"
                                 f"Retry attempt {attempt + 1} of {format_retries}..."
                             ),
-                        )
+                        ).print(verbose)
                     )
-                    if print_result:
-                        model_input[-2].pretty_print()
-                        model_input[-1].pretty_print()
                     continue
 
             message_history.append(ai_message)
-            if print_result:
-                ai_message.pretty_print()
             return response, message_history
