@@ -1,7 +1,7 @@
 from kollektiv import System
 
 if __name__ == "__main__":
-    print("Kollektive started.")
+    print("Starting Kollektiv...")
 
     goal = (
         "Your goal is: Write a story. "
@@ -12,6 +12,6 @@ if __name__ == "__main__":
         "The story must further be consistent, coherent and following a logical structure. "
     )
 
-    System(goal=goal).run()
+    System(goal).run()
 
-    print("Kollektiv ended.")
+    print("Kollektiv has stopped.")
