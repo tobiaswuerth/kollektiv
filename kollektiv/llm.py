@@ -2,6 +2,7 @@ import ollama
 import pydantic
 import random
 from typing import Self
+from langchain_core.output_parsers import PydanticOutputParser
 
 from dataclasses import dataclass
 
@@ -14,19 +15,16 @@ class Message:
     def __str__(self) -> str:
         return f"{self.role}: {self.content}"
 
+    def _print_title(self) -> str:
+        return print(f" {self.role.capitalize()} ".center(50, "="))
+
     def print(self, do=True) -> Self:
         if not do:
             return self
 
-        role = self.role.capitalize()
-        print(f" {role} ".center(50, "="))
+        self._print_title()
         print(self.content)
         return self
-
-
-class SystemMessage(Message):
-    def __init__(self, content: str) -> None:
-        super().__init__(role="system", content=content)
 
 
 class UserMessage(Message):
@@ -37,11 +35,6 @@ class UserMessage(Message):
 class AssistantMessage(Message):
     def __init__(self, content: str) -> None:
         super().__init__(role="assistant", content=content)
-
-
-class ToolMessage(Message):
-    def __init__(self, content: str) -> None:
-        super().__init__(role="tool", content=content)
 
 
 class LLMClient:
@@ -56,34 +49,56 @@ class LLMClient:
         format_retries: int = 3,
         verbose: bool = True,
     ) -> tuple[Message, list[Message]]:
+
+        if format:
+            assert issubclass(format, pydantic.BaseModel)
+            parser = PydanticOutputParser(pydantic_object=format)
+            message_history.append(
+                UserMessage(parser.get_format_instructions()).print(verbose)
+            )
+
         user_message = UserMessage(message).print(verbose)
         message_history.append(user_message)
-
         model_input = message_history.copy()
 
         for attempt in range(format_retries):
             response = ollama.chat(
                 self.model_name,
                 messages=[m.__dict__ for m in model_input],
-                stream=False,
+                stream=verbose,
                 options={
-                    "temperature": 0.5,
+                    "temperature": 0.3,
                     "top_p": 0.9,
                     "num_ctx": 4096,
                     "seed": random.randint(0, 2**30 - 1),
                 },
-                format=format.model_json_schema() if format else None,
             )
-            response = response.message.content
-            ai_message = AssistantMessage(response).print(verbose)
+
+            if verbose:
+                AssistantMessage("")._print_title()
+                chunks = []
+                for chunk in response:
+                    chunk = chunk.message.content
+                    print(chunk, end="", flush=True)
+                    chunks.append(chunk)
+                print()
+                response = "".join(chunks)
+                ai_message = AssistantMessage(response)
+            else:
+                response = response.message.content
+                ai_message = AssistantMessage(response).print(verbose)
 
             if format:
                 try:
+                    if response.startswith("<think>"):
+                        response = response.split("</think>")[-1].strip()
+                        if response.startswith("```json") and response.endswith("```"):
+                            response = response[7:-3].strip()
                     response = format.model_validate_json(response)
                 except pydantic.ValidationError as e:
                     model_input.append(ai_message)
                     model_input.append(
-                        SystemMessage(
+                        UserMessage(
                             f"Validation error: {e}\n"
                             f"Retry attempt {attempt + 1} of {format_retries}..."
                         ).print(verbose)

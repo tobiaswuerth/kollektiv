@@ -1,4 +1,4 @@
-from .llm import LLMClient, Message, SystemMessage, UserMessage
+from .llm import LLMClient, Message, UserMessage
 from .node import Node, NodeModel, NodeListModel
 
 
@@ -32,14 +32,16 @@ class System:
     def __init__(self, goal: str):
         self.goal = goal
 
-        self.llm = LLMClient(model_name="mistral-nemo:latest")
+        self.llm = LLMClient(model_name="deepseek-r1:14b")
+        # self.llm = LLMClient(model_name="deepseek-r1:32b")
+        # self.llm = LLMClient(model_name="mistral-nemo:latest")
         # self.llm = LLMClient(model_name="mistral-small3.1:latest")
         # self.llm = LLMClient(model_name="llama3.3:latest")
         # self.llm = LLMClient()
 
     def run(self):
         history: list[Message] = [
-            SystemMessage(assistant_priming).print(),
+            UserMessage(assistant_priming).print(),
             UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
@@ -61,19 +63,33 @@ class System:
     def produce_layer(self, nodes: list[Node], history: list[Message]) -> list[Node]:
         root: Node = nodes[0].root
 
+        history_base = history.copy()
+        history_base.append(
+            UserMessage((
+                    "You have been working on planning out the steps needed to achieve the goal.\n"
+                    "The full tree is currently like this:\n\n```\n"
+                    f"{root.to_json()}\n```\n\n"
+                    "Important: The person executing those tasks has only access to the following tools:\n"
+                    "1. list_files\n"
+                    "2. read_file\n"
+                    "3. write_file\n"
+                    "4. delete_file\n"
+                    "Your breakdown must be structured such that the person knows exactly what to do even without prior knowledge.\n"
+                    "This means that each step ideally has a clear input, action and output.\n"
+                    "On the higher levels of the tree this might not be possible, but on the lower levels it is a must."
+            )).print()
+        )
+
         new_nodes: list[Node] = []
         for node in nodes:
-            history_branch = history.copy()
+            history_branch = history_base.copy()
             history_branch.append(
-                SystemMessage(
-                    (
-                        "@Assistant: You have been working on planning out the steps needed to achieve the goal.\n"
-                        "The full tree is currently like this:\n\n```\n"
-                        f"{root.to_json()}\n```\n\n"
-                        "You are now working on this node:\n\n```\n"
-                        f"{node.to_json(True, False)}\n```"
-                    )
-                ).print()
+                UserMessage((
+                    "You have been working on the following node:\n\n"
+                    f"{node.to_json()}\n\n"
+                    "Create a new set of child nodes for this node.\n"
+                    "The new nodes should be unique given the whole of the tree and fit its parent."
+                )).print()
             )
 
             nodeListM, history_branch = self.llm.chat(
