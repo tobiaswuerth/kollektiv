@@ -38,8 +38,9 @@ class AssistantMessage(Message):
 
 
 class LLMClient:
-    def __init__(self, model_name: str = "phi4:latest") -> None:
+    def __init__(self, model_name: str = "mistral-nemo:latest") -> None:
         self.model_name = model_name
+        self.context_window = 2048
 
     def chat(
         self,
@@ -54,7 +55,7 @@ class LLMClient:
             assert issubclass(format, pydantic.BaseModel)
             parser = PydanticOutputParser(pydantic_object=format)
             message_history.append(
-                UserMessage(parser.get_format_instructions()).print(verbose)
+                UserMessage(parser.get_format_instructions())
             )
 
         user_message = UserMessage(message).print(verbose)
@@ -67,9 +68,9 @@ class LLMClient:
                 messages=[m.__dict__ for m in model_input],
                 stream=verbose,
                 options={
-                    "temperature": 0.3,
+                    "temperature": 0.5,
                     "top_p": 0.9,
-                    "num_ctx": 4096,
+                    "num_ctx": self.context_window,
                     "seed": random.randint(0, 2**30 - 1),
                 },
             )
@@ -92,14 +93,20 @@ class LLMClient:
                 try:
                     if response.startswith("<think>"):
                         response = response.split("</think>")[-1].strip()
-                        if response.startswith("```json") and response.endswith("```"):
-                            response = response[7:-3].strip()
+                    if response.startswith("```json") and response.endswith("```"):
+                        response = response[7:-3].strip()
                     response = format.model_validate_json(response)
                 except pydantic.ValidationError as e:
                     model_input.append(ai_message)
                     model_input.append(
                         UserMessage(
                             f"Validation error: {e}\n"
+                            f"If you see this message, it means that the output was not valid JSON.\n"
+                            f"Make sure your primary response consist only of valid JSON.\n"
+                            f"Do not include any other text, prefix or suffix, intro, explanation, or anything else.\n"
+                            f"Only include the JSON response. Start with '```json' and end with '```'\n"
+                            f'You must strictly adhere to this format.\n'
+                            f'{parser.get_format_instructions()}\n'
                             f"Retry attempt {attempt + 1} of {format_retries}..."
                         ).print(verbose)
                     )

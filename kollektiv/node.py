@@ -1,5 +1,6 @@
-from typing import Optional
+from typing import Optional, Self
 from pydantic import BaseModel, Field
+from copy import deepcopy
 
 
 def find_node_recursive(node: "Node", target_node_id: int) -> Optional["Node"]:
@@ -17,12 +18,10 @@ class Node:
         self,
         name: str,
         description: str,
-        order: int,
     ):
         self.id: int = id(self)
         self.name: str = name
         self.description: str = description
-        self.order: int = order
         self.parent: Optional["Node"] = None
         self.children: list["Node"] = []
 
@@ -38,13 +37,15 @@ class Node:
             return self
         return self.parent.root
 
-    def add_child(self, child: "Node"):
+    def add_child(self, child: "Node") -> Self:
         self.children.append(child)
         child.parent = self
+        return self
 
-    def add_children(self, children: list["Node"]):
+    def add_children(self, children: list["Node"]) -> Self:
         for child in children:
             self.add_child(child)
+        return self
 
     def remove_child(self, child: "Node"):
         self.children.remove(child)
@@ -78,24 +79,24 @@ class Node:
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "priority": self.order,
             "children": children,
         }
 
+    def clone(self) -> "Node":
+        return deepcopy(self)
+
     def __str__(self):
-        return f"Node({self.id}, ##{self.order}, {self.name}, children=[{len(self.children)}x...])"
+        return f"Node({self.id}, {self.name}, children=[{len(self.children)}x...])"
 
 
 class NodeModel(BaseModel):
     name: str = Field(description="Name of the node")
     description: str = Field(description="Description of the node")
-    order: int = Field(description="Priority of the node, lower come first")
 
     def to_node(self) -> Node:
         return Node(
             name=self.name,
             description=self.description,
-            order=self.order,
         )
 
 

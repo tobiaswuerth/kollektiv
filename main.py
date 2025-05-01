@@ -9,6 +9,7 @@ if __name__ == "__main__":
         "The story must be a fantasy sci-fi story with a novel plot in a post-apocalyptic world. "
         "The required output are 10 individual markdown files, one for each chapter. "
         "The files must be named chapter_1.md, chapter_2.md, etc. "
+        "Each file only contains the chapter title and the content of the chapter. "
         "The story must further be consistent, coherent and following a logical structure. "
     )
     
