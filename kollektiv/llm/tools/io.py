@@ -1,6 +1,6 @@
 import os
 
-from ..llm.messages import ToolMessage
+from ..messages import ToolMessage
 
 
 class Storage:
@@ -61,17 +61,21 @@ class Storage:
         if not file_name:
             return ToolMessage("!! [ERROR]: File name cannot be empty.")
         if len(file_name) > 50:
-            return ToolMessage("!! [ERROR]: File name is too long. Maximum 50 characters.")
+            return ToolMessage(
+                "!! [ERROR]: File name is too long. Maximum 50 characters."
+            )
         if not content:
             return ToolMessage("!! [ERROR]: Content cannot be empty.")
 
         VALID_EXT = [".txt", ".md", ".json"]
         if not any(file_name.endswith(ext) for ext in VALID_EXT):
-            return ToolMessage((
-                 "!! [ERROR]: Invalid file extension.\n"
-                f"!! Allowed extensions are: [ {', '.join(VALID_EXT)} ]"
-            ))
-        
+            return ToolMessage(
+                (
+                    "!! [ERROR]: Invalid file extension.\n"
+                    f"!! Allowed extensions are: [ {', '.join(VALID_EXT)} ]"
+                )
+            )
+
         file_path = os.path.join(Storage.directory, file_name)
         os.makedirs(Storage.directory, exist_ok=True)
 

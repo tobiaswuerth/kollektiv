@@ -1,7 +1,7 @@
 from duckduckgo_search import DDGS
 import trafilatura
 
-from ..llm.messages import ToolMessage
+from ..messages import ToolMessage
 
 
 class WebClient:
@@ -19,15 +19,10 @@ class WebClient:
         ddgs: DDGS = DDGS()
         results = ddgs.text(keywords=query, max_results=5)
         if not results:
-            return ToolMessage(
-                f"!! [WARNING] No results found for query '{query}'"
-            )
+            return ToolMessage(f"!! [WARNING] No results found for query '{query}'")
 
         return ToolMessage(
-            content=(
-                f"Search results for '{query}':\n"
-                f"<results>{results}</results>"
-            )
+            content=(f"Search results for '{query}':\n" f"<results>{results}</results>")
         )
 
     @staticmethod

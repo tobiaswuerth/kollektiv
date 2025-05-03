@@ -48,7 +48,7 @@ class System:
                 "RULE 2: Clarity: It must be clear enough that SOMEONE WITH NO PRIOR KNOWLEDGE can understand: What the task is. Why the task is being done (its purpose or desired outcome).\n"
                 "RULE 3: High-Level Only: DO NOT include any sub-tasks, steps, or breakdown of the task in this root node description.\n"
             ),
-            message_history=history_base,
+            history=history_base,
             format=NodeModel,
         )
         root: Node = rootM.to_node()
@@ -72,7 +72,7 @@ class System:
                 "RULE 6: LOGICAL ORDER: Arrange the tasks in the sequence they would typically be performed to progress towards the root goal.\n"
                 "RULE 7: NO DUPLICATION: The generated tasks must NOT duplicate tasks conceptually already covered by the root or by siblings in this list.\n"
             ),
-            message_history=history,
+            history=history,
             format=NodeListModel,
         )
         nodeList: list[Node] = nodeListM.to_nodes()
@@ -102,7 +102,7 @@ class System:
                     "RULE 5: LOGICAL ORDER: Arrange the child nodes in the most logical sequence for performing the specific parent task.\n"
                     "RULE 6: SUFFICIENT BREAKDOWN: Break down the parent task into its necessary sub-steps. If the parent task is already simple enough that its immediate children would be tool-executable steps, generate those CONCEPTUAL steps here, even if not yet strictly tool calls.\n"
                 ),
-                message_history=history_base,
+                history=history_base,
                 format=NodeListModel,
             )
             nodeList: list[Node] = nodeListM.to_nodes()
@@ -144,7 +144,7 @@ class System:
                     "\n"
                     "Given the parent task, the available tools, and the agent's limitations, generate the list of these highly specific, tool-based child task nodes for the specified parent.\n"
                 ),
-                message_history=history_base,
+                history=history_base,
                 format=NodeListModel,
             )
             nodeList: list[Node] = nodeListM.to_nodes()

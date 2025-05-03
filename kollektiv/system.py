@@ -1,5 +1,5 @@
 from .llm import LLMClient, Message, UserMessage, SystemMessage
-from .tools import WebClient, Storage
+from .llm import WebClient, Storage
 from .response_models import ProblemDeconstructionTree
 
 ASSISTANT_PRIMING = (
@@ -31,31 +31,33 @@ class System:
         ]
 
         # 1. Do research
-        self.llm.context_window = 12000
+        self.llm.context_window = 6144
         _ = self.llm.chat(
             message=(
-                "Your task is to do some research on how to approach a project like this. \n"
-                "Then, create a step-by-step guide to achieve the goal.\n"
-                "Then, write a summary of your research and the guide into the file research.txt"
+                "Your task in this step is to figure out in principle how one tackles a project like this.\n"
+                "You will do the following steps:\n"
+                "1. Search for helpful resources on how to break the problem down into phases.\n"
+                "2. Browse one of those resources to get in-depth information.\n"
+                "3. Write your reflections and the overall summary to 'research.txt' file.\n"
+                "Include all information that you think is relevant to the project.\n"
+                "Assume the person executing the task might not have the tools available to research on their own.\n"
             ),
-            message_history=history_base,
+            history=history_base,
             tools=[WebClient.web_search, WebClient.web_browse, Storage.write_file],
         )
 
         # 2. Structure project into phases
-        self.llm.context_window = 2048
         tree, history = self.llm.chat(
             message=(
-                "In the previous phase, you successfully did some research on the topic.\n"
-                "Your task now is to:\n"
-                "1. read your file `research.txt`.\n"
-                "2. reflect how you want to structure the research into the requested format by thinking through a dry run.\n"
-                "3. verify that the structure aligns well with your research.\n"
-                "4. create the ProblemDeconstructionTree according to your outline\n"
+                "In the previous phase, you successfully figured out in principle how one tackles a project like this.\n"
+                "Your task now is to do the following:\n"
+                "1. Read your file `research.txt`.\n"
+                "2. Reflect on what suitable project phases are to achieve the goal.\n"
+                "3. Create the ProblemDeconstructionTree."
             ),
-            message_history=history_base,
-            format=ProblemDeconstructionTree,
+            history=history_base,
             tools=[Storage.read_file],
+            format=ProblemDeconstructionTree,
         )
 
         Storage.write_file(
