@@ -1,6 +1,6 @@
 from .llm import LLMClient, Message, UserMessage, SystemMessage
 from .llm import WebClient, Storage
-from .response_models import ProblemDeconstructionTree
+from .response_models import ProblemDeconstructionTree, ProjectPlan
 
 ASSISTANT_PRIMING = (
     "You are a versatile and highly capable AI assistant. Your primary goal is to understand and respond to user requests accurately, efficiently, and helpfully.\n\n"
@@ -30,8 +30,9 @@ class System:
             UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
-        # 1. Do research
         self.llm.context_window = 6144
+
+        # 1. Do research
         _ = self.llm.chat(
             message=(
                 "Your task in this step is to figure out in principle how one tackles a project like this.\n"
@@ -47,7 +48,7 @@ class System:
         )
 
         # 2. Structure project into phases
-        tree, history = self.llm.chat(
+        tree, _ = self.llm.chat(
             message=(
                 "In the previous phase, you successfully figured out in principle how one tackles a project like this.\n"
                 "Your task now is to do the following:\n"
@@ -63,4 +64,25 @@ class System:
         Storage.write_file(
             "project_structure.json",
             tree.model_dump_json(indent=2),
+        )
+
+        # 3. Create project plan with deliverables
+        plan, _ = self.llm.chat(
+            message=(
+                "In the previous phase, you successfully created a project structure with phases of how to tackle the project.\n"
+                "Your task now is to do the following:\n"
+                "1. Read your file `research.txt` using the tool.\n"
+                "2. Read your file `project_structure.json` using the tool.\n"
+                "3. Think through each phase and note down the following:\n"
+                "   - What files are expected to be produced as part of this phase?\n"
+                "   - What files are required as input for this phase?\n"
+                "4. Finally, respond in the requested format and create the ProjectPlan.\n"
+            ),
+            history=history_base,
+            tools=[Storage.read_file, Storage.read_file],
+            format=ProjectPlan,
+        )
+        Storage.write_file(
+            "project_plan.json",
+            plan.model_dump_json(indent=2),
         )

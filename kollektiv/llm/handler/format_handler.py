@@ -12,7 +12,7 @@ class FormatHandler(Handler):
 
     def _prepare_instructions(self) -> str:
         return (
-            "Your normal response MUST be formatted as JSON that conforms to this schema:\n\n"
+            "Your response now MUST be formatted as JSON that conforms to this schema:\n\n"
             f"```json\n{self.format.model_json_schema()}\n```\n\n"
             "For example:\n"
             "For the schema:"
