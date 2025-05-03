@@ -25,6 +25,7 @@ class LLMClient:
         format: pydantic.BaseModel = None,
         verbose: bool = True,
         tools: list = None,
+        assert_tool_usage: bool = True,
     ) -> tuple[Message, list[Message]]:
         if message:
             message_history.append(UserMessage(message).print(verbose))
@@ -37,8 +38,18 @@ class LLMClient:
                 tools_handler = ToolHandler(tools)
                 instructions += tools_handler.instructions
 
+                if assert_tool_usage:
+                    instructions += (
+                        "\n\n"
+                        "Note: You MUST use at least one of the tools in your response.\n"
+                        "If you do not use any tools, the response will be considered invalid"
+                    )
+
             if tools and format:
-                instructions += "\n\n---\n\n"
+                instructions += (
+                    "\n\n---\n\n"
+                    "Once you are done using the tools, "
+                )
 
             if format:
                 format_handler = FormatHandler(format)
@@ -47,6 +58,7 @@ class LLMClient:
             instructions = instructions.strip()
             model_input.append(SystemMessage(instructions).print(verbose))
 
+        tool_usage_count = 0
         for _ in range(10):
             response = ollama.chat(
                 self.model_name,
@@ -88,6 +100,7 @@ class LLMClient:
                 if not ok:
                     continue
 
+                tool_usage_count += 1
                 message_history.append(ai_message)
                 message_history.append(msg)
                 continue
@@ -98,6 +111,15 @@ class LLMClient:
                     model_input.append(ai_message)
                     model_input.append(msg.print(verbose))
                     continue
+
+            if assert_tool_usage and tool_usage_count == 0:
+                model_input.append(ai_message)
+                model_input.append(
+                    SystemMessage(
+                        "!! [ERROR]: You are REQUIRED to make use of at least one tool in your response."
+                    ).print(verbose)
+                )
+                continue
 
             message_history.append(ai_message)
             return msg, message_history

@@ -1,5 +1,6 @@
 from .llm import LLMClient, Message, UserMessage, SystemMessage
 from .tools import WebClient, Storage
+from .response_models import ProblemDeconstructionTree
 
 ASSISTANT_PRIMING = (
     "You are a versatile and highly capable AI assistant. Your primary goal is to understand and respond to user requests accurately, efficiently, and helpfully.\n\n"
@@ -29,8 +30,9 @@ class System:
             UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
+        # 1. Do research
         self.llm.context_window = 12000
-        response, history = self.llm.chat(
+        _ = self.llm.chat(
             message=(
                 "Your task is to do some research on how to approach a project like this. \n"
                 "Then, create a step-by-step guide to achieve the goal.\n"
@@ -38,4 +40,25 @@ class System:
             ),
             message_history=history_base,
             tools=[WebClient.web_search, WebClient.web_browse, Storage.write_file],
+        )
+
+        # 2. Structure project into phases
+        self.llm.context_window = 2048
+        tree, history = self.llm.chat(
+            message=(
+                "In the previous phase, you successfully did some research on the topic.\n"
+                "Your task now is to:\n"
+                "1. read your file `research.txt`.\n"
+                "2. reflect how you want to structure the research into the requested format by thinking through a dry run.\n"
+                "3. verify that the structure aligns well with your research.\n"
+                "4. create the ProblemDeconstructionTree according to your outline\n"
+            ),
+            message_history=history_base,
+            format=ProblemDeconstructionTree,
+            tools=[Storage.read_file],
+        )
+
+        Storage.write_file(
+            "project_structure.json",
+            tree.model_dump_json(indent=2),
         )

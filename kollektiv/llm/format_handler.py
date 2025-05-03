@@ -1,7 +1,7 @@
 from pydantic import BaseModel
 from typing import Any
 
-from .messages import UserMessage
+from .messages import SystemMessage
 
 
 class FormatHandler:
@@ -15,7 +15,7 @@ class FormatHandler:
 
     def _prepare_instructions(self, format: BaseModel) -> str:
         return (
-            "Your normal response be formatted as JSON that conforms to this schema:\n\n"
+            "Your normal response MUST be formatted as JSON that conforms to this schema:\n\n"
             f"```json\n{format.model_json_schema()}\n```\n\n"
             "For example:\n"
             "For the schema:"
@@ -26,7 +26,7 @@ class FormatHandler:
             "is a well-formatted instance of the schema."
         )
 
-    def resolve(self, response: str) -> tuple[bool, UserMessage|Any]:
+    def resolve(self, response: str) -> tuple[bool, SystemMessage | Any]:
         try:
             if response.startswith("```json") and response.endswith("```"):
                 response = response[7:-3].strip()
@@ -36,9 +36,9 @@ class FormatHandler:
             self.attempt += 1
             if self.attempt >= self.retry_attempts:
                 raise e
-            return False, UserMessage(
+            return False, SystemMessage(
                 (
-                    f"!! [SYSTEM VALIDATION ERROR]: {e}\n"
+                    f"!! [ERROR]: {e}\n"
                     f"!! If you see this message, it means that your output did not adhere to the requested format.\n"
                     f"!! Retrying attempt {self.attempt + 1} of {self.retry_attempts}."
                 )
