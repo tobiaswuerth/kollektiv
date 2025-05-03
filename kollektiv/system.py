@@ -29,7 +29,7 @@ class System:
             UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
-        self.llm.context_window = 24000
+        self.llm.context_window = 12000
         response, history = self.llm.chat(
             message=(
                 "Your task is to do some research on how to approach a project like this. \n"
