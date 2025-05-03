@@ -25,7 +25,8 @@ class System:
         self.goal = goal
 
         # self.llm = LLMClient(model_name="deepseek-r1:14b")
-        self.llm = LLMClient(model_name="deepseek-r1:32b")
+        # self.llm = LLMClient(model_name="deepseek-r1:32b")
+        self.llm = LLMClient(model_name="qwen3:32b")
         # self.llm = LLMClient(model_name="mistral-nemo:latest")
         # self.llm = LLMClient(model_name="mistral-small3.1:latest")
         # self.llm = LLMClient(model_name="llama3.3:latest")
