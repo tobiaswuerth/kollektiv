@@ -1,19 +1,13 @@
 from duckduckgo_search import DDGS
 import trafilatura
-import json
 
 from ..llm.messages import ToolMessage
 
 
 class WebClient:
-    def __init__(self):
-        self.ddgs: DDGS = DDGS()
-        self.headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/136.0.0.0 Safari/537.36 Edg/136.0.0.0"
-        }
-        self.timeout = 10
 
-    def search(self, query: str) -> ToolMessage:
+    @staticmethod
+    def web_search(query: str) -> ToolMessage:
         """
         Perform a search query using the DuckDuckGo search engine and return the results.
         Args:
@@ -22,18 +16,22 @@ class WebClient:
             ToolMessage: A message containing the search results in JSON format. If no results
             are found, the content of the message will indicate that no results were found.
         """
-        results = self.ddgs.text(keywords=query, max_results=5)
+        ddgs: DDGS = DDGS()
+        results = ddgs.text(keywords=query, max_results=5)
         if not results:
-            return ToolMessage(content="<No results found>")
+            return ToolMessage(
+                f"!! [WARNING] No results found for query '{query}'"
+            )
 
         return ToolMessage(
             content=(
                 f"Search results for '{query}':\n"
-                f"```json\n{json.dumps(results, indent=2)}\n```"
+                f"<results>{results}</results>"
             )
         )
 
-    def browse(self, url: str) -> ToolMessage:
+    @staticmethod
+    def web_browse(url: str) -> ToolMessage:
         """
         Fetches and extracts the content of a web page from the given URL.
         Args:
@@ -47,11 +45,24 @@ class WebClient:
         try:
             downloaded = trafilatura.fetch_url(url)
             if downloaded is None:
-                return ToolMessage(content=f"Failed to fetch {url}")
+                return ToolMessage(
+                    f"!! [WARNING] trafilatura.fetch_url returned None from URL '{url}'"
+                )
             content = trafilatura.extract(downloaded)
             if content is None:
-                return ToolMessage(content=f"Failed to extract content from {url}")
+                return ToolMessage(
+                    f"!! [WARNING] trafilatura.extract returned None for downloaded URL '{url}'"
+                )
 
-            return ToolMessage(content=(f"Page content from {url}:\n\n" f"{content}"))
+            max_words = 3000
+            words = content.split()
+            if len(words) > max_words:
+                content = " ".join(words[:max_words]) + "... [truncated]"
+
+            return ToolMessage(
+                (f"Page content from '{url}':\n" f"<content>{content}</content>")
+            )
         except Exception as e:
-            return ToolMessage(content=(f"Error fetching {url}:\n\n" f"{str(e)}"))
+            return ToolMessage(
+                f"!! [ERROR] Exception during processing of URL '{url}': {e}"
+            )

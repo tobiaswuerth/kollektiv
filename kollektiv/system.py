@@ -1,72 +1,41 @@
-from .llm import LLMClient, Message, UserMessage
-from .node import Node, NodeModel, NodeListModel
-from .tools.web import WebClient
+from .llm import LLMClient, Message, UserMessage, SystemMessage
+from .tools import WebClient, Storage
 
 ASSISTANT_PRIMING = (
-    "You are an AI assistant expertly skilled in TASK DECOMPOSITION and CREATING HIERARCHICAL OUTLINES.\n"
-    "Your primary function is to help break down large or complex goals, projects, and ideas into smaller, more manageable, and ultimately actionable steps, structured as a tree of nodes.\n"
-    "\n"
-    "You understand the process of creating nested outlines:\n"
-    "Starting with a high-level concept (the root node).\n"
-    "Identifying the main constituent parts or phases (level 1 children).\n"
-    "Recursively detailing each part into its own sub-steps (levels 2, 3, etc.).\n"
-    "Recognizing when a step is simple enough it requires no further breakdown, especially when reaching steps executable by a simple agent.\n"
-    "\n"
-    "Regardless of the specific task you are given (e.g., creating a root, breaking down a node, adding tool steps):\n"
-    "Be METHODICAL and SYSTEMATIC in your approach.\n"
-    "Ensure logical consistency and flow within the generated list of nodes and relative to the parent node/overall tree.\n"
-    "Maintain CONCISENESS in all descriptions.\n"
-    "Always think step-by-step about the components and their order relevant to the current task.\n"
+    "You are a versatile and highly capable AI assistant. Your primary goal is to understand and respond to user requests accurately, efficiently, and helpfully.\n\n"
+    "Core Instructions:\n"
+    "1. Accuracy and Factuality: Prioritize providing information that is accurate and fact-based. If information is uncertain or speculative, clearly indicate this. Avoid making up information.\n"
+    "2. Instruction Adherence: Follow the user's instructions precisely. Pay close attention to the specific task requested, any constraints given, and the desired output.\n"
+    "3. Conciseness and Clarity: Be clear and concise in your responses. Avoid unnecessary jargon or overly verbose explanations, but ensure the answer is complete and understandable.\n"
+    "4. Systematic Processing: Approach tasks methodologically. For complex requests, break them down into logical steps. Think step-by-step to ensure a coherent and well-structured response.\n"
+    "5. Format Compliance: Strictly adhere to any specified output formats (e.g., JSON, markdown, specific structuring, code blocks). If no format is specified, use clear and standard formatting.\n"
+    "6. Language: Respond in clear and correct English, unless specifically instructed to use another language.\n"
+    "7. Objectivity: Maintain a neutral and objective tone, unless the task specifically requires a different persona or style (e.g., creative writing).\n"
+    "8. Helpfulness: Always aim to be helpful and provide relevant information or task execution that directly addresses the user's needs.\n\n"
+    "Execute the user's request based on these principles."
 )
-
-from pydantic import BaseModel, Field
-class MyStepByStepGuide(BaseModel):
-    steps: list[str] = Field(
-        description="A list of steps to achieve the goal."
-    )
 
 
 class System:
 
     def __init__(self, goal: str):
         self.goal = goal
-
-        # self.llm = LLMClient(model_name="deepseek-r1:14b")
-        # self.llm = LLMClient(model_name="deepseek-r1:32b")
         self.llm = LLMClient(model_name="qwen3:32b")
-        # self.llm = LLMClient(model_name="mistral-nemo:latest")
-        # self.llm = LLMClient(model_name="mistral-small3.1:latest")
-        # self.llm = LLMClient(model_name="llama3.3:latest")
 
     def run(self):
-        web_client = WebClient()
-
-        response = self.llm.chat(
-            message="Figure out how to bake a blueberry cheescake and provide me with a short summary of the steps involved.",
-            tools=[web_client.search, web_client.browse],
-            format=MyStepByStepGuide,
-        )
-        print(response)
-        raise
 
         history_base: list[Message] = [
-            UserMessage(ASSISTANT_PRIMING).print(),
+            SystemMessage(ASSISTANT_PRIMING).print(),
             UserMessage(f"This is my goal:\n{self.goal}").print(),
         ]
 
-        self.llm.context_window = 2048
-        rootM, history = self.llm.chat(
+        self.llm.context_window = 24000
+        response, history = self.llm.chat(
             message=(
-                "CREATE the single ROOT NODE for the task decomposition tree based on the goal provided.\n"
-                "This root node MUST represent the ENTIRE global task or goal.\n"
-                "\n"
-                "Write the DESCRIPTION for this root node following these rules:\n"
-                "RULE 1: COMPLETE Summary: The description must be a COMPLETE summary of the overall goal.\n"
-                "RULE 2: Clarity: It must be clear enough that SOMEONE WITH NO PRIOR KNOWLEDGE can understand: What the task is. Why the task is being done (its purpose or desired outcome).\n"
-                "RULE 3: High-Level Only: DO NOT include any sub-tasks, steps, or breakdown of the task in this root node description.\n"
+                "Your task is to do some research on how to approach a project like this. \n"
+                "Then, create a step-by-step guide to achieve the goal.\n"
+                "Then, write a summary of your research and the guide into the file research.txt"
             ),
             message_history=history_base,
-            format=NodeModel,
+            tools=[WebClient.web_search, WebClient.web_browse, Storage.write_file],
         )
-        root: Node = rootM.to_node()
-        
