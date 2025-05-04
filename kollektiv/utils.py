@@ -61,18 +61,20 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
     # --- Define Colors and Shapes ---
     COLOR_PHASE_BG = 'lightgrey'
     COLOR_PHASE_BORDER = 'darkgrey'
+    COLOR_PHASE_INPUT = '/orrd4/3' # Phase input relay node
+
     COLOR_TASK_BG = 'whitesmoke'
     COLOR_TASK_BORDER = 'grey'
-    COLOR_TASK_ACTION = 'lightblue' # Task action node
-    COLOR_PHASE_INPUT_RELAY = 'mediumpurple1' # Phase input relay node
-    COLOR_INTERMEDIATE_RELAY = 'thistle' # Intermediate input relay node (light purple)
-    COLOR_INTERMEDIATE_OUTPUT = 'pink' # Intermediate task output
-    COLOR_FINAL_OUTPUT = 'lightcoral' # Phase deliverable task output (Red)
-    COLOR_EXTERNAL_INPUT = 'lightyellow' # Input from outside the plan (e.g., research.txt)
+    COLOR_TASK_ACTION = 'lightblue'
+
+    COLOR_TASK_INPUT = "/orrd4/2"
+    COLOR_TASK_INTERMEDIATE_INPUT = '/orrd4/1'
+    COLOR_TASK_OUTPUT = '/greens4/3' 
+    COLOR_TASK_INTERMEDIATE_OUTPUT = '/greens4/1'
 
     SHAPE_RECTANGLE = 'box'
     SHAPE_ACTION = 'box' # Task action shape
-    SHAPE_FILE = 'box' # All file nodes are rectangles now
+    SHAPE_FILE = 'oval' # All file nodes are rectangles now
     SHAPE_RELAY = 'oval' # Relay nodes are ovals
 
     # --- Global Tracking ---
@@ -120,7 +122,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                 phase_input_relay_nodes[(i, input_file)] = phase_relay_node_id
 
                 # Add relay node inside the phase subgraph (NOT task subgraph)
-                phase_graph.add_node(phase_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_PHASE_INPUT_RELAY)
+                phase_graph.add_node(phase_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_PHASE_INPUT)
 
                 # Connect the actual source to the phase relay node
                 source_node_id = file_source_node_id.get(input_file)
@@ -130,7 +132,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                 else:
                     # If source not found within plan, assume external
                     if input_file not in globally_added_nodes:
-                         dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_EXTERNAL_INPUT)
+                         dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_PHASE_INPUT)
                          globally_added_nodes.add(input_file)
                     # Connect external source directly to phase relay node
                     dot.add_edge(input_file, phase_relay_node_id)
@@ -164,7 +166,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                         if phase_relay_node_id:
                             # Create a task-specific relay node (Purple Oval) INSIDE the task subgraph
                             task_phase_relay_node_id = f"task_phase_relay_{i}_{j}_{input_file}"
-                            task_graph.add_node(task_phase_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_PHASE_INPUT_RELAY)
+                            task_graph.add_node(task_phase_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_TASK_INPUT)
 
                             # Connect Phase Relay -> Task Relay (Edge added to parent graph)
                             dot.add_edge(phase_relay_node_id, task_phase_relay_node_id)
@@ -177,7 +179,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                             if source_node_id:
                                 # Create an intermediate relay node (Light Purple Oval) INSIDE the task subgraph
                                 task_intermediate_relay_node_id = f"task_intermediate_relay_{i}_{j}_{input_file}"
-                                task_graph.add_node(task_intermediate_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_INTERMEDIATE_RELAY)
+                                task_graph.add_node(task_intermediate_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_TASK_INTERMEDIATE_INPUT)
 
                                 # Connect Source Node -> Intermediate Relay (Edge added to parent graph)
                                 dot.add_edge(source_node_id, task_intermediate_relay_node_id)
@@ -187,7 +189,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                             else:
                                 # If source still not found, treat as external/undefined globally
                                 if input_file not in globally_added_nodes:
-                                     dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_EXTERNAL_INPUT)
+                                     dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_PHASE_INPUT)
                                      globally_added_nodes.add(input_file)
                                 # Connect external source directly to task action (No relay for external)
                                 dot.add_edge(input_file, task_action_node_id)
@@ -202,7 +204,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
 
                         # Determine color: Red if phase deliverable, Blue if intermediate
                         is_final_deliverable = output_file in phase_deliverable_files
-                        output_color = COLOR_FINAL_OUTPUT if is_final_deliverable else COLOR_INTERMEDIATE_OUTPUT
+                        output_color = COLOR_TASK_OUTPUT if is_final_deliverable else COLOR_TASK_INTERMEDIATE_OUTPUT
 
                         # Add output node within the task subgraph (Oval)
                         task_graph.add_node(output_node_id, label=output_file, shape=SHAPE_RELAY, fillcolor=output_color)
