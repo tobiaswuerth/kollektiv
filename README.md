@@ -19,7 +19,7 @@ in the `_archive` folder I currently have some of the older experiments.
 v1 is a simple multi-agent system that tries to achieve some kind of goal. .. it didn't perform well.
 v2 is a hello-world example basically of langchain/langgraph, but this became cumbersome when I wanted to generate dynamic graphs.
 
-In the end I figured I'm better of just writing my own code where I have full control. 
+In the end I figured I'm better off just writing my own code where I have full control. 
 I built a v3 (which is now on the main branch) that tries to improve on things.
 
 I noticed that one of the key challenges is to break a problem down into sub-steps.
