@@ -3,7 +3,7 @@ import os
 from .llm import LLMClient, Message, UserMessage, SystemMessage
 from .llm import WebClient, Storage
 
-from .utils import save_pydantic_json, load_pydantic_json
+from .utils import save_pydantic_json, load_pydantic_json, generate_project_plan_graph
 
 from .models.models_phase2_phases import Project
 from .models.models_phase3_deliverables import ProjectWithDeliverables
@@ -40,7 +40,14 @@ class System:
             UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
         ]
 
-        # Phase 1. Do research
+        self.run_phase1_research(debug, history)
+        self.run_phase2_phases(debug, history)
+        self.run_phase3_deliverables(debug, history)
+        self.run_phase4_tasks(debug, history)
+        self.generate_phase4_graph()
+        print("ok")
+
+    def run_phase1_research(self, debug, history):
         self.llm.context_window = 8192
         response, _ = self.llm.chat(
             message=(
@@ -64,7 +71,7 @@ class System:
         Storage.write_file("research.txt", response.strip())
         history.append(Storage.read_file("research.txt").print(not debug))
 
-        # Phase 2. Structure project into phases
+    def run_phase2_phases(self, debug, history):
         self.llm.context_window = 4096
         project, _ = self.llm.chat(
             message=(
@@ -79,7 +86,7 @@ class System:
         save_pydantic_json(project, "project_structure.json")
         history.append(Storage.read_file("project_structure.json").print(not debug))
 
-        # Phase 3. Create project plan with deliverables
+    def run_phase3_deliverables(self, debug, history):
         self.llm.context_window = 6144
         plan, _ = self.llm.chat(
             message=(
@@ -106,7 +113,7 @@ class System:
         save_pydantic_json(plan, "project_plan.json")
         history.append(Storage.read_file("project_plan.json").print(not debug))
 
-        # Phase 4. Go through each phase and analyze the todos
+    def run_phase4_tasks(self, debug, history):
         self.llm.context_window = 6144
         plan = load_pydantic_json("project_plan.json", ProjectWithDeliverables)
         plan = ProjectWithTasks.from_plan(plan)
@@ -142,17 +149,12 @@ class System:
             )
             phase.tasks = taskListM.tasks
             save_pydantic_json(plan, "project_plan_with_tasks.json")
-
         history.append(
             Storage.read_file("project_plan_with_tasks.json").print(not debug)
         )
 
-        # 4.2. Generate the project plan graph
-        plan = load_pydantic_json("project_plan_with_tasks.json", ProjectWithTasks)
-        from .utils import generate_project_plan_graph
-
+    def generate_phase4_graph(self):
         generate_project_plan_graph(
             json_file_path="output/project_plan_with_tasks.json",
             output_png_path="output/project_plan_with_tasks.png",
         )
-        print("ok")
