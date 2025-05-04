@@ -145,4 +145,9 @@ class System:
         history.append(Storage.read_file("project_plan_with_tasks.json").print(not debug))
         plan = load_pydantic_json("project_plan_with_tasks.json", ProjectWithTasks)
         
-        
+        from .utils import generate_project_plan_graph
+        generate_project_plan_graph(
+            json_file_path="output/project_plan_with_tasks.json",
+            output_png_path="output/project_plan_with_tasks.png",
+        )
+        print('ok')
