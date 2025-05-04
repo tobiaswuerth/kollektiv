@@ -50,11 +50,11 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
         strict=False, # Important for defining nodes/edges across subgraphs
         name=project_plan.get("overarching_goal", "Project Plan"),
         rankdir='TB', # Top-to-bottom layout
-        nodesep=0.5, # Increased separation
-        ranksep=0.8, # Increased separation
+        nodesep=0.15, # Reduced separation for compactness
+        ranksep=0.18, # Reduced separation for compactness
         label=project_plan.get("description", ""),
         labelloc='t',
-        fontsize=16, # Larger title font
+        fontsize=14, # Slightly smaller font for compactness
         fontname="Arial"
     )
 
@@ -88,7 +88,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
     # --- Default Attributes ---
     dot.node_attr['style'] = 'filled'
     dot.node_attr['fontname'] = 'Arial'
-    dot.node_attr['fontsize'] = 10
+    dot.node_attr['fontsize'] = 9 # Smaller font for compactness
     dot.node_attr['shape'] = SHAPE_RECTANGLE # Default shape
 
     dot.edge_attr['color'] = 'gray40'
@@ -96,6 +96,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
     dot.edge_attr['penwidth'] = 1.0
 
     # --- Phase Iteration ---
+    previous_phase_bottom_node = None  # Track last node of previous phase for vertical ordering
     for i, phase in enumerate(project_plan.get("project_phases", [])):
         phase_name = phase.get("phase_name", f"Phase {i+1}")
         phase_id = f"cluster_phase_{i}"
@@ -109,11 +110,15 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
             phase_graph.graph_attr['color'] = COLOR_PHASE_BORDER
             phase_graph.graph_attr['fillcolor'] = COLOR_PHASE_BG
             phase_graph.graph_attr['labeljust'] = 'l'
-            phase_graph.graph_attr['fontsize'] = 12
+            phase_graph.graph_attr['fontsize'] = 11
             phase_graph.graph_attr['fontname'] = 'Arial Bold'
             phase_graph.graph_attr['rankdir'] = 'TB'
-            phase_graph.graph_attr['nodesep'] = 0.3
-            phase_graph.graph_attr['ranksep'] = 0.5
+            phase_graph.graph_attr['nodesep'] = '0.10' # More compact
+            phase_graph.graph_attr['ranksep'] = '0.15' # More compact
+
+            # Track the first and last node in this phase for vertical ordering
+            phase_first_node = None
+            phase_last_node = None
 
             # 1. Define Phase Input Relay Nodes (Purple Ovals) - Placed within Phase Subgraph
             for input_file in phase_required_inputs:
@@ -123,6 +128,9 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
 
                 # Add relay node inside the phase subgraph (NOT task subgraph)
                 phase_graph.add_node(phase_relay_node_id, label=input_file, shape=SHAPE_RELAY, fillcolor=COLOR_PHASE_INPUT)
+                if not phase_first_node:
+                    phase_first_node = phase_relay_node_id
+                phase_last_node = phase_relay_node_id
 
                 # Connect the actual source to the phase relay node
                 source_node_id = file_source_node_id.get(input_file)
@@ -157,6 +165,9 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
 
                     # Add the task action node (Light Blue Rectangle)
                     task_graph.add_node(task_action_node_id, label=task_name, shape=SHAPE_ACTION, fillcolor=COLOR_TASK_ACTION)
+                    if not phase_first_node:
+                        phase_first_node = task_action_node_id
+                    phase_last_node = task_action_node_id
 
                     # 3. Connect Task Inputs
                     task_required_inputs = task.get("required_inputs", [])
@@ -201,6 +212,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
 
                     if output_file:
                         output_node_id = f"output_{i}_{j}_{output_file}" # Unique ID for this output instance
+                        phase_last_node = output_node_id
 
                         # Determine color: Red if phase deliverable, Blue if intermediate
                         is_final_deliverable = output_file in phase_deliverable_files
@@ -216,6 +228,12 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                         file_source_node_id[output_file] = output_node_id
                         globally_added_nodes.add(output_node_id) # Track that this node exists
 
+        # After phase_graph context: enforce vertical ordering between phases
+        if previous_phase_bottom_node and phase_first_node:
+            # Add invisible edge to force vertical stacking of clusters
+            dot.add_edge(previous_phase_bottom_node, phase_first_node, style='invis', weight=100)
+        if phase_last_node:
+            previous_phase_bottom_node = phase_last_node
 
     # --- Render the graph ---
     try:
