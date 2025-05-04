@@ -49,13 +49,14 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
         directed=True,
         strict=False, # Important for defining nodes/edges across subgraphs
         name=project_plan.get("overarching_goal", "Project Plan"),
-        rankdir='TB', # Top-to-bottom layout
-        nodesep=0.15, # Reduced separation for compactness
-        ranksep=0.18, # Reduced separation for compactness
+        rankdir='TB',
+        nodesep=0.15,
+        ranksep=0.18,
         label=project_plan.get("description", ""),
         labelloc='t',
         fontsize=14, # Slightly smaller font for compactness
-        fontname="Arial"
+        fontname="Arial",
+        splines='ortho',
     )
 
     # --- Define Colors and Shapes ---
@@ -140,7 +141,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                 else:
                     # If source not found within plan, assume external
                     if input_file not in globally_added_nodes:
-                         dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_PHASE_INPUT)
+                         dot.add_node(input_file, label=input_file, shape=SHAPE_FILE, fillcolor=COLOR_TASK_OUTPUT)
                          globally_added_nodes.add(input_file)
                     # Connect external source directly to phase relay node
                     dot.add_edge(input_file, phase_relay_node_id)
@@ -159,7 +160,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
                     task_graph.graph_attr['fillcolor'] = COLOR_TASK_BG
                     task_graph.graph_attr['labeljust'] = 'l'
                     task_graph.graph_attr['fontsize'] = 10
-                    task_graph.graph_attr['rankdir'] = 'TB'
+                    task_graph.graph_attr['rankdir'] = 'LR'
                     task_graph.graph_attr['nodesep'] = 0.2
                     task_graph.graph_attr['ranksep'] = 0.3
 
@@ -239,7 +240,7 @@ def generate_project_plan_graph(json_file_path: str, output_png_path: str) -> No
     try:
         # Ensure the output directory exists
         os.makedirs(os.path.dirname(output_png_path), exist_ok=True)
-        dot.draw(output_png_path, format='png', prog='dot')
+        dot.draw(output_png_path, format='png', prog='dot', args='-Gdpi=150')
         print(f"Project plan graph saved to {output_png_path}")
     except Exception as e:
         print(f"Error rendering graph with pygraphviz: {e}")
