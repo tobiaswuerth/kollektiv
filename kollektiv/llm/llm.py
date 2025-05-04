@@ -22,8 +22,17 @@ class LLMClient:
     def __init__(self, model_name: str = "mistral-nemo:latest") -> None:
         self.model_name = model_name
         self.context_window = 2048
+        self.debug = False
 
     def _get_response(self, messages: list[Message], verbose: bool) -> str:
+        
+        # debugging
+        if self.debug:
+            _ = input("Enter to clear the screen and continue...")
+            import os
+            os.system("cls" if os.name == "nt" else "clear")
+            for message in messages:
+                message.print()
         total_word_count = sum(len(m.content.split()) for m in messages)
         print(f"[DEBUG] Context word count: {total_word_count}")
 
@@ -81,12 +90,13 @@ class LLMClient:
         verbose: bool = True,
         tools: Optional[List[Callable]] = None,
     ) -> Tuple[Message, List[Message]]:
+        history = history.copy()
         history.append(UserMessage(message).print(verbose))
 
         if not tools and not format:
-            response = self._get_response(history, verbose)
-            history.append(response)
-            return response, history
+            ai_message = self._get_response(history, verbose)
+            history.append(ai_message)
+            return ai_message.content, history
 
         if tools:
             for tool in tools:
@@ -96,5 +106,10 @@ class LLMClient:
         if format:
             handler = FormatHandler(format)
             response, history = self._force_handler(history, handler, verbose)
+        elif tools:
+            # if tools were used but no format is provided, we need to invoke the LLm once more to get the final response
+            ai_message = self._get_response(history, verbose)
+            history.append(ai_message)
+            response = ai_message.content
 
         return response, history

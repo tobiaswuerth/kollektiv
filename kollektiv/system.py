@@ -13,7 +13,8 @@ ASSISTANT_PRIMING = (
     "6. Language: Respond in clear and correct English, unless specifically instructed to use another language.\n"
     "7. Objectivity: Maintain a neutral and objective tone, unless the task specifically requires a different persona or style (e.g., creative writing).\n"
     "8. Helpfulness: Always aim to be helpful and provide relevant information or task execution that directly addresses the user's needs.\n\n"
-    "Execute the user's request based on these principles."
+    "Execute the user's request based on these principles.\n"
+    "You will be guided in the sense that the System will tell you which tool to use and when."
 )
 
 
@@ -24,62 +25,67 @@ class System:
         self.llm = LLMClient(model_name="qwen3:32b")
 
     def run(self):
+        debug = False
+        self.llm.debug = debug
 
-        history_base: list[Message] = [
-            SystemMessage(ASSISTANT_PRIMING).print(),
-            UserMessage(f"This is my goal:\n{self.goal}").print(),
+        history: list[Message] = [
+            SystemMessage(ASSISTANT_PRIMING).print(not debug),
+            UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
         ]
 
-        self.llm.context_window = 6144
+        # # 1. Do research
+        # self.llm.context_window = 8192
+        # response, _ = self.llm.chat(
+        #     message=(
+        #         "Your task in this step is to figure out in principle how one tackles a project like this.\n"
+        #         "You will do the following steps:\n"
+        #         "1. Search for helpful resources on how to break the problem down into phases.\n"
+        #         "2. Browse one of those resources to get in-depth information.\n"
+        #         "3. Browse a second of those resources to diversify the information.\n"
+        #         "4. Finally, respond with your reflections and the overall summary. "
+        #         "Include all information that you think is relevant to the project. "
+        #         "Assume the person executing the task might not have the tools available to research on their own."
+        #     ),
+        #     history=history,
+        #     tools=[
+        #         WebClient.web_search,
+        #         WebClient.web_browse,
+        #         WebClient.web_browse,
+        #     ],
+        # )
+        # Storage.write_file("research.txt", response.strip())
 
-        # 1. Do research
-        _ = self.llm.chat(
-            message=(
-                "Your task in this step is to figure out in principle how one tackles a project like this.\n"
-                "You will do the following steps:\n"
-                "1. Search for helpful resources on how to break the problem down into phases.\n"
-                "2. Browse one of those resources to get in-depth information.\n"
-                "3. Write your reflections and the overall summary to 'research.txt' file.\n"
-                "Include all information that you think is relevant to the project.\n"
-                "Assume the person executing the task might not have the tools available to research on their own.\n"
-            ),
-            history=history_base,
-            tools=[WebClient.web_search, WebClient.web_browse, Storage.write_file],
-        )
+        # # 2. Structure project into phases
+        self.llm.context_window = 4096
+        history.append(Storage.read_file("research.txt").print(not debug))
+        # tree, _ = self.llm.chat(
+        #     message=(
+        #         "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
+        #         "Your task now is to do the following:\n"
+        #         "1. Reflect on what suitable project phases are to achieve the goal.\n"
+        #         "2. Finally, respond in the requested format and create the ProblemDeconstructionTree."
+        #     ),
+        #     history=history,
+        #     format=ProblemDeconstructionTree,
+        # )
 
-        # 2. Structure project into phases
-        tree, _ = self.llm.chat(
-            message=(
-                "In the previous phase, you successfully figured out in principle how one tackles a project like this.\n"
-                "Your task now is to do the following:\n"
-                "1. Read your file `research.txt`.\n"
-                "2. Reflect on what suitable project phases are to achieve the goal.\n"
-                "3. Create the ProblemDeconstructionTree."
-            ),
-            history=history_base,
-            tools=[Storage.read_file],
-            format=ProblemDeconstructionTree,
-        )
-
-        Storage.write_file(
-            "project_structure.json",
-            tree.model_dump_json(indent=2),
-        )
+        # Storage.write_file(
+        #     "project_structure.json",
+        #     tree.model_dump_json(indent=2),
+        # )
 
         # 3. Create project plan with deliverables
+        history.append(Storage.read_file("project_structure.json").print(not debug))
         plan, _ = self.llm.chat(
             message=(
-                "In the previous phase, you successfully created a project structure with phases of how to tackle the project.\n"
+                "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
                 "Your task now is to do the following:\n"
-                "1. Read your file `research.txt` using the tool.\n"
-                "2. Read your file `project_structure.json` using the tool.\n"
-                "3. Think through each phase and note down the following:\n"
-                "   - What files are expected to be produced as part of this phase?\n"
+                "1. Think through each phase and note down the following:\n"
+                "   - What files are expected to be produced as part of this phase? (valid extensions are [.txt, .md, .json])\n"
                 "   - What files are required as input for this phase?\n"
-                "4. Finally, respond in the requested format and create the ProjectPlan.\n"
+                "2. Finally, respond in the requested format and create the ProjectPlan."
             ),
-            history=history_base,
-            tools=[Storage.read_file, Storage.read_file],
+            history=history,
             format=ProjectPlan,
         )
         Storage.write_file(

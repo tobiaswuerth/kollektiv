@@ -17,7 +17,7 @@ class ToolHandler(Handler):
         super().__init__(retry_attempts)
 
     def _prepare_instructions(self) -> str:
-        instructions = "You currently MUST use this tool:\n\n"
+        instructions = "You currently MUST use this tool next:\n\n"
         for i, (name, t) in enumerate(self.tool_mapping.items()):
             instructions += (
                 f"** Tool #{i} **:\n"
@@ -28,7 +28,7 @@ class ToolHandler(Handler):
             )
 
         instructions += (
-            "** Instructions on how to use the tools **\n"
+            "** Instructions on how to use the tool **\n"
             "You MUST respond with `INVOKE_TOOL` followed by this schema:\n"
             f"```json\n{ToolCall.model_json_schema()}\n```\n"
             "\n"

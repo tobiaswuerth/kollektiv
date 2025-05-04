@@ -83,3 +83,22 @@ class Storage:
             file.write(content)
 
         return ToolMessage(f"Successfully wrote content to file '{file_name}'.")
+
+    @staticmethod
+    def create_write_file(file_name: str) -> ToolMessage:
+        def write_file(content: str) -> ToolMessage:
+            return Storage.write_file(file_name, content)
+        
+        write_file.__doc__ = (
+            f"""
+            Writes the given content to the file '{file_name}'.
+            Args:
+                content (str): The content to be written to the file.
+            Returns:
+                ToolMessage: A message indicating the success or failure of the file write operation.
+                             If successful, a success message is returned.
+                             If validation fails, an error message is returned.
+            """
+        )
+
+        return write_file
