@@ -40,70 +40,70 @@ class System:
             UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
         ]
 
-        # # Phase 1. Do research
-        # self.llm.context_window = 8192
-        # response, _ = self.llm.chat(
-        #     message=(
-        #         "Your task in this step is to figure out in principle how one tackles a project like this.\n"
-        #         "You will be guided through the following steps:\n"
-        #         "1. Search for helpful resources on how to break the problem down into phases.\n"
-        #         "2. Browse one of those resources to get in-depth information.\n"
-        #         "3. Browse a second of those resources to diversify the information.\n"
-        #         "4. Finally, respond with your reflections and the overall summary. "
-        #         "Include all information that you think is relevant to the project. "
-        #         "Assume the person executing the task might not have the tools available to research on their own.\n"
-        #         "IMPORTANT: Focus on the 'how to structure' part, and not on specific details already."
-        #     ),
-        #     history=history,
-        #     tools=[
-        #         WebClient.web_search,
-        #         WebClient.web_browse,
-        #         WebClient.web_browse,
-        #     ],
-        # )
-        # Storage.write_file("research.txt", response.strip())
+        # Phase 1. Do research
+        self.llm.context_window = 8192
+        response, _ = self.llm.chat(
+            message=(
+                "Your task in this step is to figure out in principle how one tackles a project like this.\n"
+                "You will be guided through the following steps:\n"
+                "1. Search for helpful resources on how to break the problem down into phases.\n"
+                "2. Browse one of those resources to get in-depth information.\n"
+                "3. Browse a second of those resources to diversify the information.\n"
+                "4. Finally, respond with your reflections and the overall summary. "
+                "Include all information that you think is relevant to the project. "
+                "Assume the person executing the task might not have the tools available to research on their own.\n"
+                "IMPORTANT: Focus on the 'how to structure' part, and not on specific details already."
+            ),
+            history=history,
+            tools=[
+                WebClient.web_search,
+                WebClient.web_browse,
+                WebClient.web_browse,
+            ],
+        )
+        Storage.write_file("research.txt", response.strip())
         history.append(Storage.read_file("research.txt").print(not debug))
 
-        # # Phase 2. Structure project into phases
-        # self.llm.context_window = 4096
-        # project, _ = self.llm.chat(
-        #     message=(
-        #         "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
-        #         "Your task now is to do the following:\n"
-        #         "1. Reflect on what suitable project phases are to achieve the goal.\n"
-        #         "2. Finally, respond in the requested format and create the Project hierarchy."
-        #     ),
-        #     history=history,
-        #     format=Project,
-        # )
-        # save_pydantic_json(project, "project_structure.json")
+        # Phase 2. Structure project into phases
+        self.llm.context_window = 4096
+        project, _ = self.llm.chat(
+            message=(
+                "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
+                "Your task now is to do the following:\n"
+                "1. Reflect on what suitable project phases are to achieve the goal.\n"
+                "2. Finally, respond in the requested format and create the Project hierarchy."
+            ),
+            history=history,
+            format=Project,
+        )
+        save_pydantic_json(project, "project_structure.json")
         history.append(Storage.read_file("project_structure.json").print(not debug))
 
-        # # Phase 3. Create project plan with deliverables
-        # self.llm.context_window = 6144
-        # plan, _ = self.llm.chat(
-        #     message=(
-        #         "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
-        #         "\n"
-        #         "Your task now is to do the following:\n"
-        #         "1. Think through each phase and note down the following:\n"
-        #         "   - What files are expected to be produced as part of this phase?\n"
-        #         "   - What files are required as input for this phase?\n"
-        #         "2. Finally, respond in the requested format and create the ProjectPlan.\n"
-        #         "\n"
-        #         "Note: The already existing files (research.txt, project_structure.json) are also valid input files "
-        #         "and must also be considered as input files if required.\n"
-        #         "\n"
-        #         "IMPORTANT: Choose the file names carefully. "
-        #         "The file names should be descriptive and indicate the content of the file. Avoid re-using file names. "
-        #         "For example, if in the first phase you create a file called `foo.txt`, "
-        #         "do not use the same name in the second phase to modify or overwrite its contents, "
-        #         "rather consider a suffix like `foo_draft.txt`, `foo_edited.txt`, or `foo_final.txt` etc."
-        #     ),
-        #     history=history,
-        #     format=ProjectWithDeliverables,
-        # )
-        # save_pydantic_json(plan, "project_plan.json")
+        # Phase 3. Create project plan with deliverables
+        self.llm.context_window = 6144
+        plan, _ = self.llm.chat(
+            message=(
+                "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
+                "\n"
+                "Your task now is to do the following:\n"
+                "1. Think through each phase and note down the following:\n"
+                "   - What files are expected to be produced as part of this phase?\n"
+                "   - What files are required as input for this phase?\n"
+                "2. Finally, respond in the requested format and create the ProjectPlan.\n"
+                "\n"
+                "Note: The already existing files (research.txt, project_structure.json) are also valid input files "
+                "and must also be considered as input files if required.\n"
+                "\n"
+                "IMPORTANT: Choose the file names carefully. "
+                "The file names should be descriptive and indicate the content of the file. Avoid re-using file names. "
+                "For example, if in the first phase you create a file called `foo.txt`, "
+                "do not use the same name in the second phase to modify or overwrite its contents, "
+                "rather consider a suffix like `foo_draft.txt`, `foo_edited.txt`, or `foo_final.txt` etc."
+            ),
+            history=history,
+            format=ProjectWithDeliverables,
+        )
+        save_pydantic_json(plan, "project_plan.json")
         history.append(Storage.read_file("project_plan.json").print(not debug))
 
         # Phase 4. Go through each phase and analyze the todos
@@ -143,13 +143,16 @@ class System:
             phase.tasks = taskListM.tasks
             save_pydantic_json(plan, "project_plan_with_tasks.json")
 
-        history.append(Storage.read_file("project_plan_with_tasks.json").print(not debug))
-        
+        history.append(
+            Storage.read_file("project_plan_with_tasks.json").print(not debug)
+        )
+
         # 4.2. Generate the project plan graph
         plan = load_pydantic_json("project_plan_with_tasks.json", ProjectWithTasks)
         from .utils import generate_project_plan_graph
+
         generate_project_plan_graph(
             json_file_path="output/project_plan_with_tasks.json",
             output_png_path="output/project_plan_with_tasks.png",
         )
-        print('ok')
+        print("ok")
