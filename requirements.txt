@@ -1,2 +1,12 @@
-pydantic
+pillow
+pygraphviz
+
 ollama
+pydantic
+
+langgraph
+langsmith
+langchain[ollama]
+langchain-community
+duckduckgo-search
+trafilatura
