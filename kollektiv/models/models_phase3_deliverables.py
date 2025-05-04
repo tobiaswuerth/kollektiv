@@ -19,7 +19,7 @@ class DeliverableFile(BaseModel):
 
     @field_validator("file_name")
     def validate_file_name(cls, value: str) -> str:
-        valid_extensions = {".txt", ".md", ".json"}
+        valid_extensions = {".txt", ".md", ".json", ".py", ".zip"}
         if not any(value.endswith(ext) for ext in valid_extensions):
             raise ValueError(
                 f"File name must end with one of the valid extensions: {valid_extensions}."

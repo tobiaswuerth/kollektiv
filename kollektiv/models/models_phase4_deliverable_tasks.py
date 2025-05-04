@@ -62,24 +62,3 @@ class ProjectWithTasks(BaseModel):
                 ProjectPhaseWithTasks.from_phase(p) for p in plan.project_phases
             ],
         )
-
-    @field_validator("project_phases")
-    def validate_project_phases(
-        cls, value: list[ProjectPhaseWithTasks]
-    ) -> list[ProjectPhaseWithTasks]:
-        if len(value) == 0:
-            raise ValueError("At least one project phase is required.")
-
-        for phase in value:
-            if len(phase.tasks) == 0:
-                raise ValueError(
-                    f"Phase '{phase.phase_name}' must have at least one task."
-                )
-
-            # validate that the deliverables are somewhere as output in the tasks
-            deliverable_files = {df.file_name for df in phase.deliverable_files}
-            task_files = {t.deliverable_file.file_name for t in phase.tasks}
-            if not deliverable_files.issubset(task_files):
-                raise ValueError(
-                    f"All deliverable files must be included in the tasks of phase '{phase.phase_name}'."
-                )

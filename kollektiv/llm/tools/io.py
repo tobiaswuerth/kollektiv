@@ -51,7 +51,7 @@ class Storage:
         """
         Writes the given content to a file with the specified name.
         Args:
-            file_name (str): The name of the file to be created or overwritten (valid extensions are [".txt", ".md", ".json"]).
+            file_name (str): The name of the file to be created or overwritten (valid extensions are [".txt", ".md", ".json", ".py", ".zip"]).
             content (str): The content to be written to the file.
         Returns:
             ToolMessage: A message indicating the success or failure of the file write operation.
@@ -67,7 +67,7 @@ class Storage:
         if not content:
             return ToolMessage("!! [ERROR]: Content cannot be empty.")
 
-        VALID_EXT = [".txt", ".md", ".json"]
+        VALID_EXT = [".txt", ".md", ".json", ".py", ".zip"]
         if not any(file_name.endswith(ext) for ext in VALID_EXT):
             return ToolMessage(
                 (
