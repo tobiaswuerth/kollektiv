@@ -16,14 +16,19 @@ class Handler(ABC):
         pass
 
     @abstractmethod
-    def _resolve(self, response: str) -> Any:
+    def consider(self, response: str) -> bool:
+        """Check if the response is valid for this handler."""
+        pass
+
+    @abstractmethod
+    def _invoke(self, response: str) -> Any:
         """Perform a single attempt to resolve the response."""
         pass
 
-    def resolve(self, response: str) -> tuple[bool, Any]:
+    def invoke(self, response: str) -> tuple[bool, Any]:
         """Handle retry logic and delegate resolution to `_resolve_once`."""
         try:
-            result = self._resolve(response)
+            result = self._invoke(response)
             return True, result
         except Exception as e:
             self.attempt += 1

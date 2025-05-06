@@ -17,7 +17,7 @@ class ToolHandler(Handler):
         super().__init__(retry_attempts)
 
     def _prepare_instructions(self) -> str:
-        instructions = "You currently MUST use this tool next:\n\n"
+        instructions = "You currently have access to this tool(s):\n\n"
         for i, (name, t) in enumerate(self.tool_mapping.items()):
             instructions += (
                 f"** Tool #{i} **:\n"
@@ -28,8 +28,8 @@ class ToolHandler(Handler):
             )
 
         instructions += (
-            "** Instructions on how to use the tool **\n"
-            "You MUST respond with `INVOKE_TOOL` followed by this schema:\n"
+            "** Instructions on how to use the tool(s) **\n"
+            "IF you want to invoke the tool, you MUST respond with the `INVOKE_TOOL` prefix followed by this schema:\n"
             f"```json\n{ToolCall.model_json_schema()}\n```\n"
             "\n"
             "For example:\n"
@@ -42,9 +42,10 @@ class ToolHandler(Handler):
         )
         return instructions
 
-    def _resolve(self, response: str) -> ToolMessage:
-        if not response.startswith("INVOKE_TOOL"):
-            raise ValueError("Response does not start with 'INVOKE_TOOL'.")
+    def consider(self, response: str) -> bool:
+        return response.startswith("INVOKE_TOOL")
+
+    def _invoke(self, response: str) -> ToolMessage:
         response = response[11:].strip()
 
         if response.startswith("```json") and response.endswith("```"):

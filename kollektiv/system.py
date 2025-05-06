@@ -1,4 +1,4 @@
-import os
+from tqdm import tqdm
 
 from .llm import LLMClient, Message, UserMessage, SystemMessage
 from .llm import WebClient, Storage
@@ -8,6 +8,8 @@ from .utils import save_pydantic_json, load_pydantic_json, generate_project_plan
 from .models.models_phase2_phases import Project
 from .models.models_phase3_deliverables import ProjectWithDeliverables
 from .models.models_phase4_deliverable_tasks import ProjectWithTasks, TaskList
+from .models.models_phase5_perform import ResultEvaluation
+
 
 ASSISTANT_PRIMING = (
     "You are a versatile and highly capable AI assistant. Your primary goal is to understand and respond to user requests accurately, efficiently, and helpfully.\n\n"
@@ -34,6 +36,7 @@ class System:
     def run(self):
         debug = False
         self.llm.debug = debug
+        self.llm.context_window_dynamic = True
 
         history: list[Message] = [
             SystemMessage(ASSISTANT_PRIMING).print(not debug),
@@ -47,8 +50,9 @@ class System:
         self.generate_phase4_graph()
         print("ok")
 
+        self.run_phase5_perform(debug, history)
+
     def run_phase1_research(self, debug, history):
-        self.llm.context_window = 8192
         response, _ = self.llm.chat(
             message=(
                 "Your task in this step is to figure out in principle how one tackles a project like this.\n"
@@ -59,20 +63,20 @@ class System:
                 "4. Finally, respond with your reflections and the overall summary. "
                 "Include all information that you think is relevant to the project. "
                 "Assume the person executing the task might not have the tools available to research on their own.\n"
-                "IMPORTANT: Focus on the 'how to structure' part, and not on specific details already."
+                "IMPORTANT: Focus on the 'how to structure' part, and not on specific details already.\n"
+                "Also note, you MUST use the tool provided!"
             ),
             history=history,
             tools=[
                 WebClient.web_search,
                 WebClient.web_browse,
-                WebClient.web_browse,
             ],
+            tools_forced_sequence=True,
         )
         Storage.write_file("research.txt", response.strip())
         history.append(Storage.read_file("research.txt").print(not debug))
 
     def run_phase2_phases(self, debug, history):
-        self.llm.context_window = 4096
         project, _ = self.llm.chat(
             message=(
                 "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
@@ -87,7 +91,6 @@ class System:
         history.append(Storage.read_file("project_structure.json").print(not debug))
 
     def run_phase3_deliverables(self, debug, history):
-        self.llm.context_window = 6144
         plan, _ = self.llm.chat(
             message=(
                 "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
@@ -114,7 +117,6 @@ class System:
         history.append(Storage.read_file("project_plan.json").print(not debug))
 
     def run_phase4_tasks(self, debug, history):
-        self.llm.context_window = 6144
         plan = load_pydantic_json("project_plan.json", ProjectWithDeliverables)
         plan = ProjectWithTasks.from_plan(plan)
         for phase in plan.project_phases:
@@ -158,3 +160,88 @@ class System:
             json_file_path="output/project_plan_with_tasks.json",
             output_png_path="output/project_plan_with_tasks.png",
         )
+
+    def run_phase5_perform(self, debug, history: list[Message]):
+        plan: ProjectWithTasks = load_pydantic_json(
+            "project_plan_with_tasks.json", ProjectWithTasks
+        )
+
+        history.extend(
+            [
+                SystemMessage("This is the high level project plan:").print(not debug),
+                Storage.read_file("project_plan.json").print(not debug),
+            ]
+        )
+
+        tasks_completed = []
+        for phase in tqdm(plan.project_phases, desc="Phase"):
+            for task in tqdm(phase.tasks, desc=f"Task in phase '{phase.phase_name}'"):
+                history_ = history.copy()
+
+                if tasks_completed:
+                    texts = "\n".join(
+                        [
+                            f"- ✓ {t.task_name} ({t.deliverable_file.file_name})"
+                            for t in tasks_completed
+                        ]
+                    )
+                    history_.append(
+                        SystemMessage(
+                            f"You previously completed the following tasks:\n{texts}"
+                        ).print(not debug)
+                    )
+
+                if task.required_inputs:
+                    history_.append(
+                        SystemMessage(
+                            "You will require the following files for your next task:"
+                        ).print(not debug)
+                    )
+                    for input_file in task.required_inputs:
+                        history_.append(Storage.read_file(input_file).print(not debug))
+
+                while True:
+                    resultEvalM, history_ = self.llm.chat(
+                        message=(
+                            "You are currently in the phase:\n"
+                            f"- Phase Name: {phase.phase_name}\n"
+                            f"- Phase Description: {phase.description}\n"
+                            "\n"
+                            "You are currently working on the task:\n"
+                            f"- Task Name: {task.task_name}\n"
+                            f"- Task Description: {task.description}\n"
+                            "\n"
+                            "You are required to produce the following file:\n"
+                            f"- Deliverable File Name: {task.deliverable_file.file_name}\n"
+                            f"- Deliverable File Description: {task.deliverable_file.description}\n"
+                            "\n"
+                            "Your task now is to:\n"
+                            f"1. Think about what information must be included in the file '{task.deliverable_file.file_name}'.\n"
+                            f"2. Write the content of the file '{task.deliverable_file.file_name}' in the requested format using the tool API.\n"
+                            f"3. Judge whether you need to overwrite your output or if you want to continue with the next task.\n"
+                            "\n"
+                            "Note: On rare occasions, if you deem it necessary, you may also overwrite the content of an existing file. "
+                            "However, this should be avoided if possible and is only a valid strategy if new insights came to light "
+                            "that could not have been anticipated before and require a retroactive change of certain project artifacts "
+                            "to guarantee overall coherence, completeness, correctness, consistency and compatibility.\n"
+                            "The system will only move to the next task once the requested file is produced. "
+                        ),
+                        history=history_,
+                        tools=[Storage.read_file, Storage.write_file],
+                        format=ResultEvaluation,
+                    )
+                    files = Storage.list_files()
+                    if task.deliverable_file.file_name in files:
+                        if resultEvalM.continue_with_next_task:
+                            break
+                        continue
+
+                    if resultEvalM.continue_with_next_task:
+                        history_.append(
+                            SystemMessage(
+                                f"Task '{task.task_name}' is not completed yet. "
+                                f"Please make sure to produce the required file '{task.deliverable_file.file_name}' before continuing."
+                            ).print(not debug)
+                        )
+
+                tasks_completed.append(task)

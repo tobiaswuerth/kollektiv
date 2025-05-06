@@ -12,7 +12,7 @@ class FormatHandler(Handler):
 
     def _prepare_instructions(self) -> str:
         return (
-            "Your response now MUST be formatted as JSON that conforms to this schema:\n\n"
+            "Your final response must be formatted as JSON that conforms to this schema:\n\n"
             f"```json\n{self.format.model_json_schema()}\n```\n\n"
             "For example:\n"
             "For the schema:"
@@ -22,8 +22,10 @@ class FormatHandler(Handler):
             "```json\n{{'foo': ['bar', 'baz']}}\n```\n"
             "is a well-formatted instance of the schema."
         )
-
-    def _resolve(self, response: str) -> Any:
-        if response.startswith("```json") and response.endswith("```"):
-            response = response[7:-3].strip()
+    
+    def consider(self, response: str) -> bool:
+        return response.startswith("```json") and response.endswith("```")
+    
+    def _invoke(self, response: str) -> Any:
+        response = response[7:-3].strip()
         return self.format.model_validate_json(response, strict=True)

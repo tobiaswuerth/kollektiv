@@ -7,6 +7,10 @@ class Storage:
     directory: str = "output"
 
     @staticmethod
+    def list_files() -> ToolMessage:
+        return os.listdir(Storage.directory)
+
+    @staticmethod
     def get_files() -> ToolMessage:
         """
         Retrieves a list of files from the specified storage directory.
@@ -14,7 +18,7 @@ class Storage:
             ToolMessage: A message containing the list of files if any are found,
             or a message indicating that no files were found.
         """
-        files = os.listdir(Storage.directory)
+        files = Storage.list_files()
         if not files:
             return ToolMessage("No files found.")
 
