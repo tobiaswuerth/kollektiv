@@ -38,7 +38,7 @@ class LLMClient:
         context_windows = (
             self.context_window
             if not self.context_window_dynamic
-            else total_word_count * 2
+            else int(total_word_count * 1.5)
         )
         print(
             f"[DEBUG] Input word count: {total_word_count} / Context window: {context_windows}"

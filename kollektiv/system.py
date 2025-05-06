@@ -26,6 +26,11 @@ ASSISTANT_PRIMING = (
     "You will be guided in the sense that the System will tell you which tool to use and when."
 )
 
+FILE_RESEARCH = "research.txt"
+FILE_PROJECT_STRUCTURE = "project_structure.json"
+FILE_PROJECT_PLAN = "project_plan.json"
+FILE_PROJECT_PLAN_WITH_TASKS = "project_plan_with_tasks.json"
+
 
 class System:
 
@@ -38,21 +43,25 @@ class System:
         self.llm.debug = debug
         self.llm.context_window_dynamic = True
 
-        history: list[Message] = [
+        history_base: list[Message] = [
             SystemMessage(ASSISTANT_PRIMING).print(not debug),
             UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
         ]
 
-        self.run_phase1_research(debug, history)
-        self.run_phase2_phases(debug, history)
-        self.run_phase3_deliverables(debug, history)
-        self.run_phase4_tasks(debug, history)
+        self.run_phase1_research(debug, history_base)
+        self.run_phase2_phases(debug, history_base)
+        self.run_phase3_deliverables(debug, history_base)
+        self.run_phase4_tasks(debug, history_base)
         self.generate_phase4_graph()
-        print("ok")
-
-        self.run_phase5_perform(debug, history)
+        self.run_phase5_perform(debug, history_base)
 
     def run_phase1_research(self, debug, history):
+        if FILE_RESEARCH in Storage.list_files():
+            print(
+                f"[DEBUG 1] File {FILE_RESEARCH} already exists. Skipping research phase."
+            )
+            return
+
         response, _ = self.llm.chat(
             message=(
                 "Your task in this step is to figure out in principle how one tackles a project like this.\n"
@@ -73,10 +82,18 @@ class System:
             ],
             tools_forced_sequence=True,
         )
-        Storage.write_file("research.txt", response.strip())
-        history.append(Storage.read_file("research.txt").print(not debug))
+        Storage.write_file(FILE_RESEARCH, response.strip())
 
     def run_phase2_phases(self, debug, history):
+        if FILE_PROJECT_STRUCTURE in Storage.list_files():
+            print(
+                f"[DEBUG 2] File {FILE_PROJECT_STRUCTURE} already exists. Skipping project structure phase."
+            )
+            return
+
+        history = history.copy()
+        history.append(Storage.read_file(FILE_RESEARCH).print(not debug))
+
         project, _ = self.llm.chat(
             message=(
                 "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
@@ -87,10 +104,23 @@ class System:
             history=history,
             format=Project,
         )
-        save_pydantic_json(project, "project_structure.json")
-        history.append(Storage.read_file("project_structure.json").print(not debug))
+        save_pydantic_json(project, FILE_PROJECT_STRUCTURE)
 
     def run_phase3_deliverables(self, debug, history):
+        if FILE_PROJECT_PLAN in Storage.list_files():
+            print(
+                f"[DEBUG 3] File {FILE_PROJECT_PLAN} already exists. Skipping project plan phase."
+            )
+            return
+
+        history = history.copy()
+        history.extend(
+            [
+                Storage.read_file(FILE_RESEARCH).print(not debug),
+                Storage.read_file(FILE_PROJECT_STRUCTURE).print(not debug),
+            ]
+        )
+
         plan, _ = self.llm.chat(
             message=(
                 "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
@@ -113,11 +143,24 @@ class System:
             history=history,
             format=ProjectWithDeliverables,
         )
-        save_pydantic_json(plan, "project_plan.json")
-        history.append(Storage.read_file("project_plan.json").print(not debug))
+        save_pydantic_json(plan, FILE_PROJECT_PLAN)
 
     def run_phase4_tasks(self, debug, history):
-        plan = load_pydantic_json("project_plan.json", ProjectWithDeliverables)
+        if FILE_PROJECT_PLAN_WITH_TASKS in Storage.list_files():
+            print(
+                f"[DEBUG 4] File {FILE_PROJECT_PLAN_WITH_TASKS} already exists. Skipping project plan with tasks phase."
+            )
+            return
+
+        history = history.copy()
+        history.extend(
+            [
+                Storage.read_file(FILE_RESEARCH).print(not debug),
+                Storage.read_file(FILE_PROJECT_PLAN).print(not debug),
+            ]
+        )
+
+        plan = load_pydantic_json(FILE_PROJECT_PLAN, ProjectWithDeliverables)
         plan = ProjectWithTasks.from_plan(plan)
         for phase in plan.project_phases:
             taskListM, _ = self.llm.chat(
@@ -150,34 +193,46 @@ class System:
                 format=TaskList,
             )
             phase.tasks = taskListM.tasks
-            save_pydantic_json(plan, "project_plan_with_tasks.json")
-        history.append(
-            Storage.read_file("project_plan_with_tasks.json").print(not debug)
-        )
+            save_pydantic_json(plan, FILE_PROJECT_PLAN_WITH_TASKS)
 
     def generate_phase4_graph(self):
+        output_filename = FILE_PROJECT_PLAN_WITH_TASKS + ".png"
+        if output_filename in Storage.list_files():
+            print(
+                f"[DEBUG 4] File {output_filename} already exists. Skipping graph generation."
+            )
+            return
+
+        import os
+
         generate_project_plan_graph(
-            json_file_path="output/project_plan_with_tasks.json",
-            output_png_path="output/project_plan_with_tasks.png",
+            json_file_path=os.path.join(
+                Storage.directory, FILE_PROJECT_PLAN_WITH_TASKS
+            ),
+            output_png_path=os.path.join(Storage.directory, output_filename),
         )
 
     def run_phase5_perform(self, debug, history: list[Message]):
         plan: ProjectWithTasks = load_pydantic_json(
-            "project_plan_with_tasks.json", ProjectWithTasks
+            FILE_PROJECT_PLAN_WITH_TASKS, ProjectWithTasks
         )
 
-        history.extend(
-            [
-                SystemMessage("This is the high level project plan:").print(not debug),
-                Storage.read_file("project_plan.json").print(not debug),
-            ]
-        )
+        history = history.copy()
+        history.append(Storage.read_file(FILE_PROJECT_PLAN).print(not debug))
 
         tasks_completed = []
         for phase in tqdm(plan.project_phases, desc="Phase"):
             for task in tqdm(phase.tasks, desc=f"Task in phase '{phase.phase_name}'"):
-                history_ = history.copy()
+                # for recovery
+                files = Storage.list_files()
+                if task.deliverable_file.file_name in files:
+                    tasks_completed.append(task)
+                    print(
+                        f"[DEBUG 5] File {task.deliverable_file.file_name} already exists. Skipping task '{task.task_name}'."
+                    )
+                    continue
 
+                history_ = history.copy()
                 if tasks_completed:
                     texts = "\n".join(
                         [
@@ -227,7 +282,7 @@ class System:
                             "The system will only move to the next task once the requested file is produced. "
                         ),
                         history=history_,
-                        tools=[Storage.read_file, Storage.write_file],
+                        tools=[Storage.read_file, Storage.write_file, Storage.count_words],
                         format=ResultEvaluation,
                     )
                     files = Storage.list_files()

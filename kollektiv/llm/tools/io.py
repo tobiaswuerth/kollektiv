@@ -87,3 +87,24 @@ class Storage:
             file.write(content)
 
         return ToolMessage(f"Successfully wrote content to file '{file_name}'.")
+
+    @staticmethod
+    def count_words(file_name: str) -> ToolMessage:
+        """
+        Counts the number of words in a file.
+        Args:
+            file_name (str): The name of the file to be read.
+        Returns:
+            ToolMessage: A message indicating the success or failure of the word count operation.
+                         If successful, the message contains the word count.
+                         If the file is not found, an error message is returned.
+        """
+        file_path = os.path.join(Storage.directory, file_name)
+        if not os.path.exists(file_path):
+            return ToolMessage(f"!! [ERROR]: File '{file_name}' not found.")
+
+        with open(file_path, "r", encoding="utf-8") as file:
+            content = file.read()
+            word_count = len(content.split())
+
+        return ToolMessage(f"Word count for '{file_name}': {word_count} words.")
