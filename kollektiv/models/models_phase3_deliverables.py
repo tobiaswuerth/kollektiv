@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
 from kollektiv.models.models_phase2_phases import ProjectPhase
+from ..config import config
 
 
 class DeliverableFile(BaseModel):
@@ -19,10 +20,9 @@ class DeliverableFile(BaseModel):
 
     @field_validator("file_name")
     def validate_file_name(cls, value: str) -> str:
-        valid_extensions = {".txt", ".md", ".json", ".py", ".zip"}
-        if not any(value.endswith(ext) for ext in valid_extensions):
+        if not any(value.endswith(ext) for ext in config.valid_tool_output_extensions):
             raise ValueError(
-                f"File name must end with one of the valid extensions: {valid_extensions}."
+                f"File name must end with one of the valid extensions: {config.valid_tool_output_extensions}."
             )
         return value
 

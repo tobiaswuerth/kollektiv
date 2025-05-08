@@ -12,13 +12,13 @@ if __name__ == "__main__":
         "Each file only contains the chapter title and the content of the chapter. "
         "The story must further be consistent, coherent and following a logical structure. "
     )
-    
+
     # goal = (
     #     "Develop an online Pong game with two-player support over the internet. "
     #     "Include basic mechanics: paddles, bouncing ball, and scoring. "
     #     "Provide client and server files."
     # )
-    
-    System(goal=goal).run()
+
+    System(goal).run()
 
     print("Kollektiv ended.")

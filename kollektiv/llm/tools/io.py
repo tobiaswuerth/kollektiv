@@ -1,10 +1,11 @@
 import os
 
 from ..messages import ToolMessage
+from ...config import config
 
 
 class Storage:
-    directory: str = "output"
+    directory: str = config.output_dir
 
     @staticmethod
     def list_files() -> ToolMessage:
@@ -55,7 +56,7 @@ class Storage:
         """
         Writes the given content to a file with the specified name.
         Args:
-            file_name (str): The name of the file to be created or overwritten (valid extensions are [".txt", ".md", ".json", ".py", ".zip"]).
+            file_name (str): The name of the file to be created or overwritten.
             content (str): The content to be written to the file.
         Returns:
             ToolMessage: A message indicating the success or failure of the file write operation.
@@ -71,12 +72,11 @@ class Storage:
         if not content:
             return ToolMessage("!! [ERROR]: Content cannot be empty.")
 
-        VALID_EXT = [".txt", ".md", ".json", ".py", ".zip"]
-        if not any(file_name.endswith(ext) for ext in VALID_EXT):
+        if not any(file_name.endswith(ext) for ext in config.valid_tool_output_extensions):
             return ToolMessage(
                 (
                     "!! [ERROR]: Invalid file extension.\n"
-                    f"!! Allowed extensions are: [ {', '.join(VALID_EXT)} ]"
+                    f"!! Allowed extensions are: {config.valid_tool_output_extensions}"
                 )
             )
 

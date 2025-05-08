@@ -1,0 +1,2 @@
+output_dir: "output"
+valid_tool_output_extensions: [".txt", ".md", ".json", ".py", ".zip"]
