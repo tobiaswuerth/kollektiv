@@ -1,6 +1,7 @@
 from tqdm import tqdm
 
 from .llm import LLMClient, Message, UserMessage, SystemMessage
+from .llm import Judge, EvaluationResult
 from .llm import WebClient, Storage
 
 from .utils import save_pydantic_json, load_pydantic_json, generate_project_plan_graph
@@ -37,6 +38,7 @@ class System:
     def __init__(self, goal: str):
         self.goal = goal
         self.llm = LLMClient(model_name="qwen3:32b")
+        self.judge = Judge(LLMClient(model_name="qwen3:32b"))
 
     def run(self):
         debug = False
@@ -94,7 +96,7 @@ class System:
         history = history.copy()
         history.append(Storage.read_file(FILE_RESEARCH).print(not debug))
 
-        project, _ = self.llm.chat(
+        project, history = self.llm.chat_reflect_improve(
             message=(
                 "In the previous step you successfully figured out in principle how one tackles a project like this.\n"
                 "Your task now is to do the following:\n"
@@ -103,7 +105,9 @@ class System:
             ),
             history=history,
             format=Project,
+            judge=self.judge,
         )
+
         save_pydantic_json(project, FILE_PROJECT_STRUCTURE)
 
     def run_phase3_deliverables(self, debug, history):
@@ -121,7 +125,7 @@ class System:
             ]
         )
 
-        plan, _ = self.llm.chat(
+        plan, _ = self.llm.chat_reflect_improve(
             message=(
                 "In the previous step you successfully created a project structure with phases of how to tackle the project.\n"
                 "\n"
@@ -142,6 +146,7 @@ class System:
             ),
             history=history,
             format=ProjectWithDeliverables,
+            judge=self.judge,
         )
         save_pydantic_json(plan, FILE_PROJECT_PLAN)
 
@@ -163,7 +168,7 @@ class System:
         plan = load_pydantic_json(FILE_PROJECT_PLAN, ProjectWithDeliverables)
         plan = ProjectWithTasks.from_plan(plan)
         for phase in plan.project_phases:
-            taskListM, _ = self.llm.chat(
+            taskListM, _ = self.llm.chat_reflect_improve(
                 message=(
                     f"In the previous steps you successfully created a project plan with phases and deliverables.\n"
                     f"We will go through each phase individually now upon my instruction to analyze the todos.\n"
@@ -191,6 +196,7 @@ class System:
                 ),
                 history=history,
                 format=TaskList,
+                judge=self.judge,
             )
             phase.tasks = taskListM.tasks
             save_pydantic_json(plan, FILE_PROJECT_PLAN_WITH_TASKS)
@@ -282,7 +288,11 @@ class System:
                             "The system will only move to the next task once the requested file is produced. "
                         ),
                         history=history_,
-                        tools=[Storage.read_file, Storage.write_file, Storage.count_words],
+                        tools=[
+                            Storage.read_file,
+                            Storage.write_file,
+                            Storage.count_words,
+                        ],
                         format=ResultEvaluation,
                     )
                     files = Storage.list_files()

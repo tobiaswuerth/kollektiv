@@ -10,15 +10,20 @@ class Message:
     def __str__(self) -> str:
         return f"{self.role}: {self.content}"
 
+    def _get_title(self) -> str:
+        return f" {self.role.capitalize()} ".center(80, "=")
+
     def _print_title(self) -> str:
-        return print(f" {self.role.capitalize()} ".center(80, "="))
+        return print(self._get_title())
+
+    def _get_printable(self) -> str:
+        return f"{self._get_title()}\n{self.content}"
 
     def print(self, do=True) -> Self:
         if not do:
             return self
 
-        self._print_title()
-        print(self.content)
+        print(self._get_printable())
         return self
 
 

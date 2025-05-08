@@ -1,4 +1,5 @@
 from .llm import LLMClient
+from .judge import Judge, EvaluationResult
 from .messages import (
     Message,
     UserMessage,

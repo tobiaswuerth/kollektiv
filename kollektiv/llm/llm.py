@@ -3,6 +3,7 @@ import pydantic
 import random
 from typing import List, Callable, Tuple, Optional
 
+from .judge import Judge, EvaluationResult
 from .messages import (
     Message,
     UserMessage,
@@ -164,3 +165,50 @@ class LLMClient:
                 return response, history
 
             return ai_message.content, history
+
+    def chat_reflect_improve(
+        self,
+        judge: Judge,
+        message: str,
+        history: List[Message] = [],
+        format: Optional[pydantic.BaseModel] = None,
+        verbose: bool = True,
+        tools: Optional[List[Callable]] = None,
+        tools_forced_sequence: bool = False,
+        iterations: int = 2,
+    ) -> Tuple[Message, List[Message]]:
+
+        result, history = self.chat(
+            message=message,
+            history=history,
+            format=format,
+            verbose=verbose,
+            tools=tools,
+            tools_forced_sequence=tools_forced_sequence,
+        )
+
+        for _ in range(iterations):
+            print(f"[DEBUG] Iteration {_ + 1} of {iterations}")
+            inputs_ = "\n".join([h._get_printable() for h in history])
+            result: EvaluationResult = judge.evaluate(inputs_)
+            history.append(
+                SystemMessage(
+                    (
+                        f"Your response has been evaluated:\n\n"
+                        f"{result.model_dump_json(indent=2)}"
+                    )
+                ).print(verbose)
+            )
+
+            result, history = self.chat(
+                message=(
+                    "Please reflect on the evaluation and improve your answer accordingly."
+                ),
+                history=history,
+                format=format,
+                verbose=verbose,
+                tools=tools,
+                tools_forced_sequence=tools_forced_sequence,
+            )
+
+        return result, history
