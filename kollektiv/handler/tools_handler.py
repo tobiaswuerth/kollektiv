@@ -1,7 +1,9 @@
-from .handle import Handler
 from langchain_core.tools import tool
 from pydantic import BaseModel, Field
-from ..messages import ToolMessage
+
+
+from kollektiv.handler.handle import Handler
+from kollektiv.core import ToolMessage
 
 
 class ToolCall(BaseModel):

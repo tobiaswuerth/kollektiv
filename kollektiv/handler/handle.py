@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Any
 
-from ..messages import ToolMessage
+from kollektiv.core import ToolMessage
 
 
 class Handler(ABC):

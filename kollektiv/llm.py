@@ -3,14 +3,10 @@ import pydantic
 import random
 from typing import List, Callable, Tuple, Optional
 
-from .judge import Judge, EvaluationResult
-from .messages import (
-    Message,
-    UserMessage,
-    AssistantMessage,
-    SystemMessage,
-)
-from .handler import Handler, ToolHandler, FormatHandler
+
+from kollektiv.core import Message, UserMessage, SystemMessage, AssistantMessage
+from kollektiv.handler import Handler, ToolHandler, FormatHandler
+from kollektiv.roles import Judge, EvaluationResult
 
 
 def _clean_thinking(response: str) -> str:

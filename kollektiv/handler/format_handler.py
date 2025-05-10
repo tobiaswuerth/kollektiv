@@ -1,6 +1,8 @@
-from .handle import Handler
 from pydantic import BaseModel
 from typing import Any
+
+
+from kollektiv.handler.handle import Handler
 
 
 class FormatHandler(Handler):
@@ -22,10 +24,10 @@ class FormatHandler(Handler):
             "```json\n{{'foo': ['bar', 'baz']}}\n```\n"
             "is a well-formatted instance of the schema."
         )
-    
+
     def consider(self, response: str) -> bool:
         return response.startswith("```json") and response.endswith("```")
-    
+
     def _invoke(self, response: str) -> Any:
         response = response[7:-3].strip()
         return self.format.model_validate_json(response, strict=True)

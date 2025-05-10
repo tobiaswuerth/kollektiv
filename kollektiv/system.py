@@ -1,9 +1,9 @@
 from tqdm import tqdm
 
-from .llm import LLMClient, Message, UserMessage, SystemMessage
-from .llm import Judge, EvaluationResult
-from .llm import WebClient, Storage
-
+from kollektiv.core import Message, SystemMessage
+from kollektiv.roles import Researcher, Judge
+from kollektiv.tools import Storage, WebClient
+from .llm import LLMClient
 from .utils import save_pydantic_json, load_pydantic_json, generate_project_plan_graph
 
 from .models.models_phase2_phases import Project
@@ -37,54 +37,35 @@ class System:
 
     def __init__(self, goal: str):
         self.goal = goal
-        self.llm = LLMClient(model_name="qwen3:32b")
+        self.llm = LLMClient(model_name="phi4-reasoning")
         self.judge = Judge(LLMClient(model_name="qwen3:32b"))
 
     def run(self):
-        debug = False
-        self.llm.debug = debug
-        self.llm.context_window_dynamic = True
+        # debug = False
+        # self.llm.debug = debug
+        # self.llm.context_window_dynamic = True
 
-        history_base: list[Message] = [
-            SystemMessage(ASSISTANT_PRIMING).print(not debug),
-            UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
-        ]
+        # history_base: list[Message] = [
+        #     SystemMessage(ASSISTANT_PRIMING).print(not debug),
+        #     UserMessage(f"This is my goal:\n{self.goal}").print(not debug),
+        # ]
 
-        self.run_phase1_research(debug, history_base)
-        self.run_phase2_phases(debug, history_base)
-        self.run_phase3_deliverables(debug, history_base)
-        self.run_phase4_tasks(debug, history_base)
-        self.generate_phase4_graph()
-        self.run_phase5_perform(debug, history_base)
+        self.run_phase1_research()
+        # self.run_phase2_phases(debug, history_base)
+        # self.run_phase3_deliverables(debug, history_base)
+        # self.run_phase4_tasks(debug, history_base)
+        # self.generate_phase4_graph()
+        # self.run_phase5_perform(debug, history_base)
 
-    def run_phase1_research(self, debug, history):
+    def run_phase1_research(self):
         if FILE_RESEARCH in Storage.list_files():
             print(
                 f"[DEBUG 1] File {FILE_RESEARCH} already exists. Skipping research phase."
             )
             return
 
-        response, _ = self.llm.chat(
-            message=(
-                "Your task in this step is to figure out in principle how one tackles a project like this.\n"
-                "You will be guided through the following steps:\n"
-                "1. Search for helpful resources on how to break the problem down into phases.\n"
-                "2. Browse one of those resources to get in-depth information.\n"
-                "3. Browse a second of those resources to diversify the information.\n"
-                "4. Finally, respond with your reflections and the overall summary. "
-                "Include all information that you think is relevant to the project. "
-                "Assume the person executing the task might not have the tools available to research on their own.\n"
-                "IMPORTANT: Focus on the 'how to structure' part, and not on specific details already.\n"
-                "Also note, you MUST use the tool provided!"
-            ),
-            history=history,
-            tools=[
-                WebClient.web_search,
-                WebClient.web_browse,
-            ],
-            tools_forced_sequence=True,
-        )
-        Storage.write_file(FILE_RESEARCH, response.strip())
+        researcher = Researcher()
+        researcher.evaluate(self.goal)
 
     def run_phase2_phases(self, debug, history):
         if FILE_PROJECT_STRUCTURE in Storage.list_files():

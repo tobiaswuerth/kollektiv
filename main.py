@@ -1,16 +1,51 @@
+import logging
+import os
+from datetime import datetime
 from kollektiv import System
 
+
+def setup_logging():
+    log_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "logs")
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Generate log filename with timestamp
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log_filename = os.path.join(log_dir, f"kollektiv_{timestamp}.log")
+
+    # Configure root logger
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+
+    # File handler - logs everything to file
+    file_handler = logging.FileHandler(log_filename, encoding="utf-8")
+    file_formatter = logging.Formatter(
+        "%(asctime)s | %(levelname)s\t | %(name)s: %(message)s"
+    )
+    file_handler.setFormatter(file_formatter)
+    file_handler.setLevel(logging.DEBUG)
+    logger.addHandler(file_handler)
+
+    # Console handler - logs INFO and above to console
+    console_handler = logging.StreamHandler()
+    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    console_handler.setFormatter(console_formatter)
+    console_handler.setLevel(logging.INFO)
+    logger.addHandler(console_handler)
+
+    logging.info(f"Logging system initialized. Log file: {log_filename}")
+    return log_filename
+
+
 if __name__ == "__main__":
-    print("Kollektive started.")
+    log_file = setup_logging()
+    print(f"Writing log to: {log_file}")
+    logging.info("Kollektiv started.")
 
     goal = (
-        "Write a story. "
-        "The story must have 5 chapters and each chapter consist of around 500 words. "
-        "The story must be a fantasy sci-fi story with a novel plot in a post-apocalyptic world. "
-        "The required output are 5 individual markdown files, one for each chapter. "
-        "The files must be named chapter_1.md, chapter_2.md, etc. "
-        "Each file only contains the chapter title and the content of the chapter. "
-        "The story must further be consistent, coherent and following a logical structure. "
+        "The goal is to write a story. "
+        "The story must have 5 chapters and each chapter must consist of around 500 words (±20 words). "
+        "The story must be a a novel short story with a plot playing in a post-apocalyptic world. "
+        "The required output is a markdown file 'book.md'. "
     )
 
     # goal = (
@@ -19,6 +54,9 @@ if __name__ == "__main__":
     #     "Provide client and server files."
     # )
 
-    System(goal).run()
+    # from kollektiv.llm.tools import PDFHandler
+    # goal = PDFHandler._read_pdf("2025 d_SSA Modul BMDT.pdf")
 
-    print("Kollektiv ended.")
+    logging.info(f"Starting system with goal: {goal[:50]}...")
+    System(goal).run()
+    logging.info("Kollektiv ended.")
