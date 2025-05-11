@@ -27,7 +27,7 @@ def setup_logging():
 
     # Console handler - logs INFO and above to console
     console_handler = logging.StreamHandler()
-    console_formatter = logging.Formatter("%(levelname)s: %(message)s")
+    console_formatter = logging.Formatter("[%(levelname)s] %(message)s")
     console_handler.setFormatter(console_formatter)
     console_handler.setLevel(logging.INFO)
     logger.addHandler(console_handler)
@@ -42,7 +42,7 @@ if __name__ == "__main__":
     logging.info("Kollektiv started.")
 
     goal = (
-        "The goal is to write a story. "
+        "Write a story. "
         "The story must have 5 chapters and each chapter must consist of around 500 words (±20 words). "
         "The story must be a a novel short story with a plot playing in a post-apocalyptic world. "
         "The required output is a markdown file 'book.md'. "
@@ -57,6 +57,6 @@ if __name__ == "__main__":
     # from kollektiv.llm.tools import PDFHandler
     # goal = PDFHandler._read_pdf("2025 d_SSA Modul BMDT.pdf")
 
-    logging.info(f"Starting system with goal: {goal[:50]}...")
+    logging.info(f"Starting system with goal: {goal}...")
     System(goal).run()
     logging.info("Kollektiv ended.")

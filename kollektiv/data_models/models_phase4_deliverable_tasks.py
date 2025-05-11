@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 
-from kollektiv.models.models_phase3_deliverables import (
+from kollektiv.data_models.models_phase3_deliverables import (
     DeliverableFile,
     ProjectPhaseWithDeliverables,
     ProjectWithDeliverables,

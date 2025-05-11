@@ -6,10 +6,10 @@ from kollektiv.tools import Storage, WebClient
 from .llm import LLMClient
 from .utils import save_pydantic_json, load_pydantic_json, generate_project_plan_graph
 
-from .models.models_phase2_phases import Project
-from .models.models_phase3_deliverables import ProjectWithDeliverables
-from .models.models_phase4_deliverable_tasks import ProjectWithTasks, TaskList
-from .models.models_phase5_perform import ResultEvaluation
+from .data_models.models_phase2_phases import Project
+from .data_models.models_phase3_deliverables import ProjectWithDeliverables
+from .data_models.models_phase4_deliverable_tasks import ProjectWithTasks, TaskList
+from .data_models.models_phase5_perform import ResultEvaluation
 
 
 ASSISTANT_PRIMING = (
@@ -37,8 +37,8 @@ class System:
 
     def __init__(self, goal: str):
         self.goal = goal
-        self.llm = LLMClient(model_name="phi4-reasoning")
-        self.judge = Judge(LLMClient(model_name="qwen3:32b"))
+        self.llm = LLMClient(model="phi4-reasoning")
+        self.judge = Judge(LLMClient(model="qwen3:32b"))
 
     def run(self):
         # debug = False

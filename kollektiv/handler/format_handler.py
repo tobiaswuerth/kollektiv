@@ -14,6 +14,8 @@ class FormatHandler(Handler):
 
     def _prepare_instructions(self) -> str:
         return (
+            "# Format\n"
+            "\n"
             "Your final response must be formatted as JSON that conforms to this schema:\n\n"
             f"```json\n{self.format.model_json_schema()}\n```\n\n"
             "For example:\n"

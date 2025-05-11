@@ -28,6 +28,8 @@ class Handler(ABC):
     def invoke(self, response: str) -> tuple[bool, Any]:
         """Handle retry logic and delegate resolution to `_resolve_once`."""
         try:
+            if not self.consider(response):
+                raise RuntimeError(f"Not considered response valid for handler {self.__class__.__name__}")
             result = self._invoke(response)
             return True, result
         except Exception as e:

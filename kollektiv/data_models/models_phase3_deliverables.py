@@ -1,6 +1,6 @@
 from pydantic import BaseModel, Field, field_validator
 
-from kollektiv.models.models_phase2_phases import ProjectPhase
+from kollektiv.data_models.models_phase2_phases import ProjectPhase
 from ..config import config
 
 
