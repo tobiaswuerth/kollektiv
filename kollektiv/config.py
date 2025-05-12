@@ -9,6 +9,7 @@ CONFIG_FILE = "config.yaml"
 class Config(NamedTuple):
     output_dir: str
     valid_tool_output_extensions: list[str]
+    brave_search_api_key: str
 
 
 def _load_global_config() -> Config:

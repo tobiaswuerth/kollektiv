@@ -8,6 +8,5 @@ langgraph
 langsmith
 langchain[ollama]
 langchain-community
-duckduckgo-search
 trafilatura
 PyMuPDF

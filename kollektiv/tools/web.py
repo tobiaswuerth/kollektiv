@@ -1,8 +1,13 @@
-from duckduckgo_search import DDGS
+from langchain_community.utilities.brave_search import BraveSearchWrapper
 import trafilatura
 import logging
 
 from kollektiv.core import ToolMessage
+from kollektiv.config import config
+
+import os
+
+os.environ["BRAVE_SEARCH_API_KEY"] = config.brave_search_api_key
 
 
 class WebClient:
@@ -20,16 +25,16 @@ class WebClient:
             ToolMessage: Message containing search results or warning if none found
         """
         WebClient.logger.info(f"Performing web search: '{query}'")
-        ddgs: DDGS = DDGS()
-        results = ddgs.text(keywords=query, max_results=5)
-        if not results:
-            WebClient.logger.warning(f"No results found for query: '{query}'")
-            return ToolMessage(f"!! [WARNING] No results found for query: '{query}'")
-
-        WebClient.logger.info(f"Found {len(results)} results for: '{query}'")
+        bs = BraveSearchWrapper(
+            search_kwargs={
+                "count": 5,
+                "extra_snippets": False,
+            }
+        )
+        results = bs.run(query)
         WebClient.logger.debug(f"Search results: {results}")
         return ToolMessage(
-            content=(f"Search results for '{query}':\n" f"<results>{results}</results>")
+            f"Search results for '{query}':\n<results>{results}</results>"
         )
 
     @staticmethod
