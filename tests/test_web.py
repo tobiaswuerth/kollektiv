@@ -144,3 +144,74 @@ def test_fast_event_feed_preserves_bursts_without_reading_checkpoint(control_roo
     batch = response.json()
     assert [e["id"] for e in batch["events"]] == expected
     assert client.get(f"/api/runs/{run_id}/events?cursor={batch['cursor']}").json()["events"] == []
+
+
+def test_saved_team_configuration_and_run_layout(control_room):
+    client, manager = control_room
+    settings = client.get("/api/bootstrap").json()["settings"]
+    settings["communication_links"] = [{"source": "builder", "target": "researcher"}]
+    positions = {"builder": {"x": 40, "y": 220}}
+    payload = {
+        "version": 1,
+        "name": "Focused team",
+        "goal": "Create a story",
+        "settings": settings,
+        "positions": positions,
+    }
+    saved = client.post("/api/configurations", json=payload)
+    assert saved.status_code == 201, saved.text
+    configuration_id = saved.json()["id"]
+    assert client.get("/api/configurations").json()["configurations"][0] == saved.json()
+    assert client.get(f"/api/configurations/{configuration_id}").json() == saved.json()
+    updated = client.post("/api/configurations", json={**saved.json(), "name": "Renamed team"})
+    assert updated.status_code == 201
+    assert len(manager.configurations.list()) == 1
+    created = client.post(
+        "/api/runs", json={"goal": payload["goal"], "settings": settings, "positions": positions}
+    )
+    assert created.status_code == 201, created.text
+    run_id = created.json()["manifest"]["run_id"]
+    assert created.json()["manifest"]["positions"] == positions
+    reopened = RunManager(manager.directory, models=manager.models)
+    assert reopened.snapshot(run_id)["manifest"]["positions"] == positions
+    assert reopened.configurations.get(configuration_id)["name"] == "Renamed team"
+    refused = client.delete(
+        f"/api/configurations/{configuration_id}", headers={"Origin": "https://other.example"}
+    )
+    assert refused.status_code == 403
+    assert client.delete(f"/api/configurations/{configuration_id}").status_code == 200
+    assert client.get("/api/configurations").json()["configurations"] == []
+    assert client.get("/api/configurations/not-an-id").status_code == 400
+
+
+def test_bootstrap_mission_samples_and_invalid_layout(control_room):
+    client, _ = control_room
+    data = client.get("/api/bootstrap").json()
+    assert {sample["difficulty"] for sample in data["mission_samples"]} == {
+        "easy",
+        "medium",
+        "elaborate",
+    }
+    assert "write_file" in data["tools"]
+    response = client.post(
+        "/api/runs", json={"goal": "Invalid layout", "positions": {"ghost": {"x": 0, "y": 0}}}
+    )
+    assert response.status_code == 400
+    assert client.get("/api/runs").json()["runs"] == []
+
+
+def test_run_selector_uses_creation_time_not_random_id_suffix(control_room):
+    client, manager = control_room
+    ids = sorted(
+        client.post("/api/runs", json={"goal": "Sorting test"}).json()["manifest"]["run_id"]
+        for _ in range(2)
+    )
+    for run_id, created_at in zip(
+        ids, ["2026-10-12T10:00:00.900000+00:00", "2026-10-12T10:00:00.100000+00:00"], strict=True
+    ):
+        collective = manager.get(run_id).collective
+        collective.manifest["created_at"] = created_at
+        (collective.directory / "run.json").write_text(
+            json.dumps(collective.manifest), encoding="utf-8"
+        )
+    assert [run["run_id"] for run in client.get("/api/runs").json()["runs"]] == ids

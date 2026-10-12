@@ -17,13 +17,17 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from importlib.resources import files
 from pathlib import Path
+from typing import get_args
 from urllib.parse import parse_qs, unquote, urlsplit
 
 import httpx
 
-from .config import Settings
+from .config import Settings, ToolName
+from .configurations import ConfigurationStore, validate_positions
 from .control import RunControl
+from .missions import mission_samples
 from .runtime import Collective, RunBusyError
+from .workspace import atomic_write
 
 
 @dataclass
@@ -48,6 +52,7 @@ class RunManager:
         self.models = models
         self._runs: dict[str, ManagedRun] = {}
         self._lock = threading.RLock()
+        self.configurations = ConfigurationStore(self.directory / "_configurations")
 
     def list_runs(self) -> list[dict]:
         runs = []
@@ -72,7 +77,7 @@ class RunManager:
                 )
             except (OSError, ValueError, TypeError):
                 continue
-        return runs
+        return sorted(runs, key=lambda run: str(run.get("created_at") or ""), reverse=True)
 
     def get(self, run_id: str) -> ManagedRun:
         if not re.fullmatch(r"[A-Za-z0-9_-]{1,100}", run_id):
@@ -87,12 +92,19 @@ class RunManager:
                 self._runs[run_id] = ManagedRun(Collective.open(directory, models=self.models))
             return self._runs[run_id]
 
-    def create(self, goal: str, settings: dict | None = None) -> dict:
+    def create(
+        self, goal: str, settings: dict | None = None, positions: dict | None = None
+    ) -> dict:
         if not isinstance(goal, str):
             raise ValueError("The goal must be text")
-        collective = Collective.create(
-            goal, self.directory, Settings.model_validate(settings or {}), models=self.models
-        )
+        validated = Settings.model_validate(settings or {})
+        positions = validate_positions(positions, validated)
+        collective = Collective.create(goal, self.directory, validated, models=self.models)
+        if positions:
+            collective.manifest["positions"] = positions
+            atomic_write(
+                collective.directory / "run.json", json.dumps(collective.manifest, indent=2)
+            )
         with self._lock:
             self._runs[collective.manifest["run_id"]] = ManagedRun(collective)
         return self.snapshot(collective.manifest["run_id"])
@@ -203,6 +215,11 @@ class ControlRoomServer(ThreadingHTTPServer):
     def __init__(self, address: tuple[str, int], manager: RunManager):
         self.manager = manager
         super().__init__(address, ControlRoomHandler)
+        hosts = {"127.0.0.1", "localhost", "::1"}
+        for host in (address[0], self.server_address[0]):
+            if host not in {"", "0.0.0.0", "::"}:
+                hosts.add(host.casefold())
+        self.allowed_authorities = {(host, self.server_port) for host in hosts}
 
     def server_close(self):
         self.manager.close()
@@ -256,9 +273,33 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
 
     def check_origin(self):
         # Local browser applications must not permit another site to issue actions.
+        def authority(value: str, *, origin: bool = False) -> tuple[str, int]:
+            if not value or value != value.strip():
+                raise PermissionError("Invalid control room authority")
+            try:
+                parsed = urlsplit(value if origin else f"http://{value}")
+                if (
+                    parsed.scheme != "http"
+                    or not parsed.hostname
+                    or parsed.username is not None
+                    or parsed.password is not None
+                    or parsed.path
+                    or parsed.query
+                    or parsed.fragment
+                ):
+                    raise ValueError("Expected an HTTP authority without credentials or a path")
+                return parsed.hostname.casefold(), 80 if parsed.port is None else parsed.port
+            except ValueError as exc:
+                raise PermissionError("Invalid control room authority") from exc
+
         origin = self.headers.get("Origin")
-        host = self.headers.get("Host")
-        if origin and urlsplit(origin).netloc != host:
+        hosts = self.headers.get_all("Host", [])
+        if len(hosts) != 1:
+            raise PermissionError("Expected one control room Host header")
+        host = authority(hosts[0])
+        if host not in self.server.allowed_authorities:
+            raise PermissionError("This Host does not name this control room")
+        if origin and authority(origin, origin=True) != host:
             raise PermissionError("This action must come from this control room")
         if self.headers.get("Sec-Fetch-Site") == "cross-site":
             raise PermissionError("Cross-site requests are not allowed")
@@ -282,8 +323,25 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
             return self.send_data(data, content_type + "; charset=utf-8")
         if method == "GET" and path == "/api/bootstrap":
             return self.send_json(
-                {"settings": Settings().model_dump(), "runs": manager.list_runs(), "version": 4}
+                {
+                    "settings": Settings().model_dump(),
+                    "runs": manager.list_runs(),
+                    "version": 4,
+                    "tools": list(get_args(ToolName)),
+                    "mission_samples": mission_samples(),
+                }
             )
+        if path == "/api/configurations":
+            if method == "GET":
+                return self.send_json({"configurations": manager.configurations.list()})
+            if method == "POST":
+                return self.send_json(manager.configurations.save(self.body()), 201)
+        if len(parts) == 3 and parts[:2] == ["api", "configurations"]:
+            if method == "GET":
+                return self.send_json(manager.configurations.get(parts[2]))
+            if method == "DELETE":
+                manager.configurations.delete(parts[2])
+                return self.send_json({"deleted": True})
         if method == "GET" and path == "/api/health":
             run_id = query.get("run", [""])[0]
             settings = manager.get(run_id).collective.settings if run_id else Settings()
@@ -302,7 +360,10 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
             return self.send_json({"runs": manager.list_runs()})
         if method == "POST" and path == "/api/runs":
             data = self.body()
-            return self.send_json(manager.create(data.get("goal", ""), data.get("settings")), 201)
+            return self.send_json(
+                manager.create(data.get("goal", ""), data.get("settings"), data.get("positions")),
+                201,
+            )
         if len(parts) >= 3 and parts[:2] == ["api", "runs"]:
             run_id = parts[2]
             if method == "GET" and len(parts) == 3:
@@ -329,10 +390,11 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
     def handle_request(self, method: str):
         self._request_body = None
         try:
-            if method == "POST":
+            if method in {"POST", "DELETE"}:
                 # Rejected requests may have unread bodies. Do not reuse that socket.
                 self.close_connection = True
-                self._request_body = self.body()
+                if method == "POST":
+                    self._request_body = self.body()
                 self.check_origin()
             self.route(method)
         except RunBusyError as exc:
@@ -353,6 +415,9 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         self.handle_request("POST")
+
+    def do_DELETE(self):
+        self.handle_request("DELETE")
 
 
 def serve(

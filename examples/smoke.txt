@@ -1,4 +1,0 @@
-Create a two-part field guide for a fictional robot called Pip.
-First produce design.md describing Pip's appearance and two rules: Pip runs on sunlight, and Pip never speaks.
-Then produce story.md containing a 120 to 180 word scene that follows the design and both rules.
-The story must name Pip. These two files are the required deliverables.

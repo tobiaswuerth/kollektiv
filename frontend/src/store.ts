@@ -2,6 +2,7 @@ import { create } from "zustand";
 import { api } from "./api";
 import type {
   EventBatch,
+  MissionSample,
   Pulse,
   Run,
   RuntimeEvent,
@@ -24,6 +25,7 @@ export function mergeEvents(
 }
 type Room = {
   defaults: Settings | null;
+  missionSamples: MissionSample[];
   runs: Run[];
   runId: string | null;
   snapshot: Snapshot | null;
@@ -34,17 +36,27 @@ type Room = {
   busy: boolean;
   connected: boolean;
   latency: number;
+  mutationEpoch: number;
   health: { connected: boolean; model: string; models: string[] } | null;
-  accept: (data: Snapshot | EventBatch, animate?: boolean) => void;
+  accept: (
+    data: Snapshot | EventBatch,
+    animate?: boolean,
+    authoritative?: boolean,
+  ) => void;
   select: (selection: Selection) => void;
   chooseRun: (id: string) => Promise<void>;
   refreshRuns: () => Promise<void>;
   control: (action: string, retry?: boolean) => Promise<void>;
   intervene: (action: string, fields: Record<string, unknown>) => Promise<void>;
-  createRun: (goal: string, settings: Settings) => Promise<void>;
+  createRun: (
+    goal: string,
+    settings: Settings,
+    positions?: Record<string, { x: number; y: number }>,
+  ) => Promise<void>;
 };
 export const useRoom = create<Room>((set, get) => ({
   defaults: null,
+  missionSamples: [],
   runs: [],
   runId: null,
   snapshot: null,
@@ -55,9 +67,10 @@ export const useRoom = create<Room>((set, get) => ({
   busy: false,
   connected: true,
   latency: 0,
+  mutationEpoch: 0,
   health: null,
   select: (selection) => set({ selection }),
-  accept: (data, animate = true) => {
+  accept: (data, animate = true, authoritative = false) => {
     const room = get();
     const { events, fresh } = mergeEvents(room.events, data.events);
     const now = Date.now();
@@ -71,8 +84,11 @@ export const useRoom = create<Room>((set, get) => ({
             end: now + Math.min(i * 40, 1600) + 1800,
           }))
       : [];
-    const snapshot =
-      "manifest" in data
+    const stale =
+      !authoritative && !!room.snapshot && data.cursor < room.snapshot.cursor;
+    const snapshot = stale
+      ? room.snapshot
+      : "manifest" in data
         ? data
         : room.snapshot
           ? {
@@ -101,6 +117,7 @@ export const useRoom = create<Room>((set, get) => ({
     });
   },
   chooseRun: async (id) => {
+    const epoch = get().mutationEpoch + 1;
     set({
       runId: id || null,
       snapshot: null,
@@ -108,13 +125,17 @@ export const useRoom = create<Room>((set, get) => ({
       pulses: [],
       selection: null,
       error: "",
+      busy: false,
+      mutationEpoch: epoch,
     });
     if (!id) return;
     try {
       const data = await api<Snapshot>(`/api/runs/${id}`);
-      if (get().runId === id) get().accept(data, false);
+      if (get().runId === id && get().mutationEpoch === epoch)
+        get().accept(data, false, true);
     } catch (e) {
-      set({ error: String(e), connected: false });
+      if (get().runId === id && get().mutationEpoch === epoch)
+        set({ error: String(e), connected: false });
     }
   },
   refreshRuns: async () => {
@@ -124,33 +145,50 @@ export const useRoom = create<Room>((set, get) => ({
   control: async (action, retry = false) => {
     const id = get().runId;
     if (!id || get().busy) return;
-    set({ busy: true, error: "" });
+    const epoch = get().mutationEpoch + 1;
+    set({ busy: true, error: "", mutationEpoch: epoch });
     try {
       const data = await api<Snapshot>(`/api/runs/${id}/control`, {
         action,
         retry,
       });
-      if (get().runId === id) get().accept(data);
+      if (get().runId === id && get().mutationEpoch === epoch)
+        get().accept(data, true, true);
     } catch (e) {
-      set({ error: String(e) });
+      if (get().runId === id && get().mutationEpoch === epoch)
+        set({ error: String(e) });
     } finally {
-      set({ busy: false });
+      if (get().mutationEpoch === epoch)
+        set({ busy: false, mutationEpoch: epoch + 1 });
     }
   },
   intervene: async (action, fields) => {
     const id = get().runId;
     if (!id) return;
-    const data = await api<Snapshot>(`/api/runs/${id}/admin`, {
-      action,
-      ...fields,
-    });
-    if (get().runId === id) {
-      get().accept(data);
-      await get().refreshRuns();
+    if (get().busy)
+      throw new Error("Wait for the current control action to finish.");
+    const epoch = get().mutationEpoch + 1;
+    set({ busy: true, mutationEpoch: epoch });
+    try {
+      const data = await api<Snapshot>(`/api/runs/${id}/admin`, {
+        action,
+        ...fields,
+      });
+      if (get().runId === id && get().mutationEpoch === epoch) {
+        get().accept(data, true, true);
+        await get().refreshRuns();
+      }
+    } finally {
+      if (get().mutationEpoch === epoch)
+        set({ busy: false, mutationEpoch: epoch + 1 });
     }
   },
-  createRun: async (goal, settings) => {
-    const data = await api<Snapshot>("/api/runs", { goal, settings });
+  createRun: async (goal, settings, positions) => {
+    const data = await api<Snapshot>("/api/runs", {
+      goal,
+      settings,
+      positions,
+    });
     await get().refreshRuns();
     await get().chooseRun(data.manifest.run_id);
   },

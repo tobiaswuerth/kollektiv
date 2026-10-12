@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { lazy, Suspense, useEffect, useState } from "react";
 import {
   CircleAlert,
   Network,
@@ -18,10 +18,17 @@ import { AgentGraph } from "./components/AgentGraph";
 import { Inspector } from "./components/Inspector";
 import { DataDock } from "./components/DataDock";
 import { ActionDialog, type Action } from "./components/ActionDialog";
+import { EditorBoundary } from "./components/EditorBoundary";
+const TeamEditor = lazy(() =>
+  import("./components/TeamEditor").then((module) => ({
+    default: module.TeamEditor,
+  })),
+);
 export function App() {
   useRuntime();
   const room = useRoom();
   const [action, setAction] = useState<Action | null>(null);
+  const [editing, setEditing] = useState(false);
   const snapshot = room.snapshot,
     running = !!snapshot?.running,
     paused = snapshot?.control?.mode === "paused",
@@ -37,6 +44,7 @@ export function App() {
           'input,textarea,select,button,[role="button"]',
         ) ||
         action ||
+        editing ||
         e.ctrlKey ||
         e.metaKey ||
         e.altKey
@@ -57,7 +65,7 @@ export function App() {
     };
     document.addEventListener("keydown", key);
     return () => document.removeEventListener("keydown", key);
-  }, [action, snapshot, completed, running]);
+  }, [action, editing, snapshot, completed, running]);
   return (
     <>
       <div className="app-shell">
@@ -96,7 +104,7 @@ export function App() {
         </header>
         <Overview editGoal={() => admin("revise_goal")} />
         <main className="main">
-          <AgentGraph />
+          <AgentGraph onEdit={() => setEditing(true)} />
           <div className="transport">
             <div>
               <button
@@ -190,6 +198,19 @@ export function App() {
           action={action}
           close={() => setAction(null)}
         />
+      )}
+      {editing && room.defaults && (
+        <EditorBoundary close={() => setEditing(false)}>
+          <Suspense
+            fallback={
+              <div role="status" className="error-toast">
+                Loading team editor…
+              </div>
+            }
+          >
+            <TeamEditor close={() => setEditing(false)} />
+          </Suspense>
+        </EditorBoundary>
       )}
     </>
   );

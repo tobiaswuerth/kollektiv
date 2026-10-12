@@ -24,7 +24,7 @@ class Contribution(Schema):
     findings: str = Field(
         description="Concrete recommendations, facts, uncertainties and conventions"
     )
-    messages: list[MessageDraft] = Field(min_length=1, max_length=5)
+    messages: list[MessageDraft] = Field(default_factory=list, max_length=5)
 
 
 class Task(Schema):

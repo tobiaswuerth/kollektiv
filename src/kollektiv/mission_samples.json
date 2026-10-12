@@ -1,0 +1,74 @@
+[
+  {
+    "id": "pip-field-card",
+    "title": "Pip's field card",
+    "difficulty": "easy",
+    "description": "One short Markdown artifact with clear, checkable requirements.",
+    "goal": "Create field_card.md, a 150 to 220 word field card for a fictional robot called Pip. Include the headings Appearance, Abilities, and A day with Pip. Pip is palm-sized, runs on sunlight, and never speaks. Explain how Pip communicates without speech and include a short example that follows all three facts. This single Markdown file is the required deliverable. Use imagination; no web research is needed.",
+    "settings": {
+      "max_tasks": 3,
+      "max_steps": 8,
+      "discussion_rounds": 1
+    }
+  },
+  {
+    "id": "picnic-plan",
+    "title": "A neighborhood picnic",
+    "difficulty": "easy",
+    "description": "Practice planning and independent review with one concrete checklist.",
+    "goal": "Create picnic_plan.md for a fictional two-hour neighborhood picnic with 12 guests and a budget of 60 credits. Include a simple timetable, a supplies checklist, a budget table whose entries total no more than 60 credits, and a rainy-day alternative. Use invented prices and label them as estimates. Assign three organizer roles with clear duties. Keep the document under 400 words. This single Markdown file is the required deliverable; no web research is needed.",
+    "settings": {
+      "max_tasks": 3,
+      "max_steps": 8,
+      "discussion_rounds": 1
+    }
+  },
+  {
+    "id": "pip-silent-adventure",
+    "title": "Pip's silent adventure",
+    "difficulty": "medium",
+    "description": "Two dependent files demonstrate shared design and a consistent handoff.",
+    "goal": "Create a two-part field guide for a fictional robot called Pip. First produce design.md describing Pip's appearance, nonverbal communication, and two rules: Pip runs on sunlight, and Pip never speaks. Then produce story.md containing a 120 to 180 word scene that names Pip and follows the design and both rules. The scene must show a problem and how Pip solves it. The story should depend on the completed design. These two Markdown files are the required deliverables. No web research is needed.",
+    "settings": {
+      "max_tasks": 6,
+      "max_steps": 12,
+      "discussion_rounds": 2
+    }
+  },
+  {
+    "id": "board-game-kit",
+    "title": "A tiny board game kit",
+    "difficulty": "medium",
+    "description": "Write reusable rules, then test their consistency with a worked example.",
+    "goal": "Design a simple two-player paper board game called Star Courier, playable with a pencil, a six-sided die, and a shared 5 by 5 grid. Produce rules.md with setup, turns, movement, scoring, and a clear end condition in no more than 500 words. Then produce example.md showing the first three turns using specific die rolls, positions, and scores that obey those rules, followed by three edge cases and their resolutions. Keep the rules simple and deterministic apart from the die. These two Markdown files are the required deliverables. No web research is needed.",
+    "settings": {
+      "max_tasks": 6,
+      "max_steps": 12,
+      "discussion_rounds": 2
+    }
+  },
+  {
+    "id": "three-chapter-story",
+    "title": "A three-chapter sci-fi story",
+    "difficulty": "elaborate",
+    "description": "Four artifacts with a shared outline, continuity, and an ending.",
+    "goal": "Write a coherent fantasy sci-fi story set in a post-apocalyptic world. Produce outline.md with a cast of no more than three named characters, five world rules, and a three-chapter plot with a clear ending. Then produce chapter_1.md, chapter_2.md, and chapter_3.md. Each chapter must contain only its title and story, around 250 to 350 words. All chapters must follow the shared outline, maintain character and world-rule consistency, and build toward the promised ending. These four Markdown files are the required deliverables. No web research is needed.",
+    "settings": {
+      "max_tasks": 10,
+      "max_steps": 16,
+      "discussion_rounds": 2
+    }
+  },
+  {
+    "id": "keyboard-pong",
+    "title": "A playable keyboard Pong game",
+    "difficulty": "elaborate",
+    "description": "A small four-file browser project with documented manual checks.",
+    "goal": "Build a playable browser Pong game for two people sharing a keyboard. Produce index.html, style.css, game.js, and README.md. Use an HTML canvas, two paddles, a bouncing ball, a visible score, and a restart button. The left paddle uses W and S; the right uses ArrowUp and ArrowDown. Keep paddles within the court, award a point when the ball crosses an end, and reset the ball after scoring. Restart must reset both scores. The README must explain how to open index.html, list the controls, and provide a manual checklist for movement, scoring, and restart. Keep it self-contained with no remote assets or dependencies. These four files are the required deliverables. No web research is needed.",
+    "settings": {
+      "max_tasks": 10,
+      "max_steps": 20,
+      "discussion_rounds": 2
+    }
+  }
+]

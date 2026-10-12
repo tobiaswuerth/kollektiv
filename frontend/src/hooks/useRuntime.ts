@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { api } from "../api";
 import { useRoom } from "../store";
-import type { EventBatch, Settings, Snapshot } from "../types";
+import { missionCatalogue } from "../missionSamples";
+import type { EventBatch, MissionSample, Settings, Snapshot } from "../types";
 
 export function useRuntime() {
   useEffect(() => {
@@ -27,7 +28,7 @@ export function useRuntime() {
       if (!disposed) healthTimer = setTimeout(refreshHealth, 15_000);
     };
     const poll = async () => {
-      const { runId, snapshot } = useRoom.getState();
+      const { runId, snapshot, mutationEpoch } = useRoom.getState();
       const start = performance.now();
       try {
         if (runId) {
@@ -37,7 +38,11 @@ export function useRuntime() {
               const events = await api<EventBatch>(
                 `/api/runs/${runId}/events?cursor=${cursor}`,
               );
-              if (!disposed && useRoom.getState().runId === runId)
+              if (
+                !disposed &&
+                useRoom.getState().runId === runId &&
+                useRoom.getState().mutationEpoch === mutationEpoch
+              )
                 useRoom.getState().accept(events);
             } catch (e) {
               if ((e as { status?: number }).status === 404)
@@ -46,13 +51,19 @@ export function useRuntime() {
             }
           }
           if (
-            !lightweight ||
-            Date.now() - lastSnapshot > (snapshot?.running ? 750 : 1800)
+            useRoom.getState().runId === runId &&
+            useRoom.getState().mutationEpoch === mutationEpoch &&
+            (!lightweight ||
+              Date.now() - lastSnapshot > (snapshot?.running ? 750 : 1800))
           ) {
             const data = await api<Snapshot>(
               `/api/runs/${runId}?cursor=${useRoom.getState().snapshot?.cursor || 0}`,
             );
-            if (!disposed && useRoom.getState().runId === runId)
+            if (
+              !disposed &&
+              useRoom.getState().runId === runId &&
+              useRoom.getState().mutationEpoch === mutationEpoch
+            )
               useRoom.getState().accept(data);
             lastSnapshot = Date.now();
           }
@@ -61,13 +72,22 @@ export function useRuntime() {
           await useRoom.getState().refreshRuns();
           lastRuns = Date.now();
         }
-        if (!disposed)
+        if (
+          !disposed &&
+          useRoom.getState().runId === runId &&
+          useRoom.getState().mutationEpoch === mutationEpoch
+        )
           useRoom.setState({
             connected: true,
             latency: Math.round(performance.now() - start),
           });
       } catch {
-        if (!disposed) useRoom.setState({ connected: false });
+        if (
+          !disposed &&
+          useRoom.getState().runId === runId &&
+          useRoom.getState().mutationEpoch === mutationEpoch
+        )
+          useRoom.setState({ connected: false });
       }
       if (!disposed)
         timer = setTimeout(
@@ -81,9 +101,15 @@ export function useRuntime() {
     };
     (async () => {
       try {
-        const data = await api<{ settings: Settings }>("/api/bootstrap");
+        const data = await api<{
+          settings: Settings;
+          mission_samples?: MissionSample[];
+        }>("/api/bootstrap");
         if (disposed) return;
-        useRoom.setState({ defaults: data.settings });
+        useRoom.setState({
+          defaults: data.settings,
+          missionSamples: missionCatalogue(data.mission_samples),
+        });
         await useRoom.getState().refreshRuns();
         const runs = useRoom.getState().runs;
         if (runs.length && !useRoom.getState().runId)

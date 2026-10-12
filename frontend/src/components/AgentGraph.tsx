@@ -1,25 +1,21 @@
-import { memo, useEffect, useMemo, useRef, useState } from "react";
+import { memo, useMemo, useRef } from "react";
 import {
   Background,
-  BaseEdge,
   Controls,
   Handle,
   MarkerType,
   Position,
   ReactFlow,
   ReactFlowProvider,
-  getBezierPath,
-  useReactFlow,
-  type EdgeProps,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import dagre from "@dagrejs/dagre";
 import {
   Code2,
   Expand,
   GitBranch,
   Network,
+  Pencil,
   Search,
   ShieldCheck,
   Wrench,
@@ -28,8 +24,13 @@ import {
 import { useRoom } from "../store";
 import { actor, nice, tones } from "../selectors";
 import { useClock } from "../hooks/useRuntime";
-import type { Agent, Pulse, RuntimeEvent } from "../types";
+import type { Agent, RuntimeEvent } from "../types";
 import { Badge } from "./ui";
+import { FlowEdge } from "../graph/FlowEdge";
+import { GraphViewport } from "../graph/GraphViewport";
+import { useGraphLayouts } from "../graph/layoutStore";
+import { layoutTeam, linkId, workflowLinks } from "../graph/model";
+import { useNodeMeasurements } from "../graph/useNodeMeasurements";
 
 type Person = Node<
   {
@@ -109,114 +110,29 @@ const PersonCard = memo(({ data, selected }: NodeProps<Person>) => {
   );
 });
 const nodeTypes = { person: PersonCard };
-function FlowEdge(props: EdgeProps) {
-  const self = props.source === props.target;
-  const [normal, labelX, labelY] = getBezierPath(props);
-  const path = self
-    ? `M ${props.sourceX} ${props.sourceY} C ${props.sourceX + 90} ${props.sourceY - 70}, ${props.targetX + 90} ${props.targetY + 80}, ${props.targetX} ${props.targetY}`
-    : normal;
-  const data = props.data as {
-    pulses?: Pulse[];
-    count?: number;
-    tone: string;
-    label?: string;
-  };
-  return (
-    <>
-      <BaseEdge
-        {...props}
-        path={path}
-        style={{
-          stroke: data.tone,
-          opacity: data.pulses?.length ? 0.9 : 0.35,
-          strokeWidth: data.pulses?.length ? 2 : 1.2,
-        }}
-      />
-      {data.pulses?.map((p) => (
-        <circle
-          key={p.event.id}
-          r="4"
-          fill={data.tone}
-          className="flow-packet"
-          data-flow-event={p.event.id}
-        >
-          <animateMotion dur="1.1s" repeatCount="indefinite" path={path} />
-        </circle>
-      ))}
-      {!self && !!data.count && (
-        <g className="edge-label" transform={`translate(${labelX},${labelY})`}>
-          <rect x="-13" y="-9" width="26" height="18" rx="8" />
-          <text textAnchor="middle" dy="4">
-            {data.count}
-          </text>
-        </g>
-      )}
-      {self && data.pulses?.length ? (
-        <text
-          x={props.sourceX + 30}
-          y={props.sourceY - 26}
-          className="tool-edge-label"
-        >
-          {data.label}
-        </text>
-      ) : null}
-    </>
-  );
-}
 const edgeTypes = { flow: FlowEdge };
 
 function GraphContent() {
-  const { snapshot, defaults, events, pulses, selection, select } = useRoom();
+  const { snapshot, defaults, events, pulses, selection, select, runId } =
+    useRoom();
   const config = snapshot?.manifest.settings || defaults;
   const team = config?.team || [],
     tasks = Object.values(snapshot?.state.tasks || {}),
     now = useClock();
-  const key = team.map((a) => a.name).join("|");
-  const { fitView } = useReactFlow();
+  const key = `${runId || "defaults"}:${team.map((a) => a.name).join("|")}`;
   const container = useRef<HTMLDivElement>(null);
-  const [positions, setPositions] = useState<
-    Record<string, { x: number; y: number }>
-  >({});
-  const layout = useMemo(() => {
-    const graph = new dagre.graphlib.Graph()
-      .setGraph({ rankdir: "TB", ranksep: 38, nodesep: 95 })
-      .setDefaultEdgeLabel(() => ({}));
-    team.forEach((a) => graph.setNode(a.name, { width: 214, height: 132 }));
-    const workers = team.filter(
-      (a) => a.name !== config?.coordinator && a.name !== config?.reviewer,
-    );
-    workers.forEach((a) => {
-      graph.setEdge(config!.coordinator, a.name);
-      graph.setEdge(a.name, config!.reviewer);
-    });
-    dagre.layout(graph);
-    return Object.fromEntries(
-      team.map((a) => [
-        a.name,
-        { x: graph.node(a.name).x - 107, y: graph.node(a.name).y - 66 },
-      ]),
-    );
-  }, [key, config?.coordinator, config?.reviewer]);
-  useEffect(() => {
-    setPositions({});
-  }, [key]);
-  useEffect(() => {
-    let timer: ReturnType<typeof setTimeout>;
-    const fit = () => {
-      clearTimeout(timer);
-      timer = setTimeout(
-        () => void fitView({ padding: 0.12, duration: 200 }),
-        120,
-      );
-    };
-    const observer = new ResizeObserver(fit);
-    observer.observe(container.current!);
-    fit();
-    return () => {
-      clearTimeout(timer);
-      observer.disconnect();
-    };
-  }, [key, fitView]);
+  const positions = useGraphLayouts(
+    (state) => state.layouts[runId || "defaults"],
+  );
+  const moveNodes = useGraphLayouts((state) => state.moveNodes);
+  const { measurements, acceptMeasurements } = useNodeMeasurements();
+  const layoutKey = JSON.stringify([
+    team.map((a) => a.name),
+    config?.coordinator,
+    config?.reviewer,
+    config?.communication_links,
+  ]);
+  const layout = useMemo(() => (config ? layoutTeam(config) : {}), [layoutKey]);
   const activePulses = pulses.filter((p) => p.start <= now && p.end >= now);
   const nodes: Person[] = team.map((agent, index) => {
     const recent = activePulses
@@ -271,8 +187,11 @@ function GraphContent() {
     return {
       id: agent.name,
       type: "person",
-      position: positions[agent.name] || layout[agent.name] || { x: 0, y: 0 },
+      position: positions?.[agent.name] ||
+        snapshot?.manifest.positions?.[agent.name] ||
+        layout[agent.name] || { x: 0, y: 0 },
       selected: selection?.type === "agent" && selection.id === agent.name,
+      measured: measurements[agent.name],
       data: {
         agent,
         tone: tones[index % tones.length],
@@ -299,23 +218,29 @@ function GraphContent() {
       source === target
     )
       return;
-    const id = `${source}→${target}`;
+    const id = linkId({ source, target });
     const link = links.get(id) || { source, target, count: 0 };
     link.count += count;
     links.set(id, link);
   };
-  team
-    .filter(
-      (a) => a.name !== config?.coordinator && a.name !== config?.reviewer,
-    )
-    .forEach((a) => {
-      add(config!.coordinator, a.name);
-      add(a.name, config!.reviewer);
-    });
+  if (config)
+    (config.communication_links ?? workflowLinks(config)).forEach(
+      ({ source, target }) => add(source, target),
+    );
   events
     .filter((e) => e.kind === "message")
     .forEach((e) => {
-      if (e.recipient === "all") team.forEach((a) => add(e.sender!, a.name, 1));
+      if (e.recipient === "all")
+        team.forEach((a) => {
+          if (
+            e.system ||
+            config?.communication_links == null ||
+            config.communication_links.some(
+              (link) => link.source === e.sender && link.target === a.name,
+            )
+          )
+            add(e.sender!, a.name, 1);
+        });
       else add(e.sender!, e.recipient!, 1);
     });
   const edges = [...links.entries()].map(([id, link]) => {
@@ -379,21 +304,21 @@ function GraphContent() {
         edgeTypes={edgeTypes}
         onNodeClick={(_, n) => select({ type: "agent", id: n.id })}
         onNodesChange={(changes) => {
+          acceptMeasurements(changes);
           const moved = changes.filter(
             (c) => c.type === "position" && c.position,
           );
-          if (moved.length)
-            setPositions((previous) => {
-              const next = { ...previous };
-              for (const change of moved)
-                if (change.type === "position" && change.position)
-                  next[change.id] = change.position;
-              return next;
-            });
+          if (moved.length) {
+            const next: Record<string, { x: number; y: number }> = {};
+            for (const change of moved)
+              if (change.type === "position" && change.position)
+                next[change.id] = change.position;
+            moveNodes(runId || "defaults", next);
+          }
         }}
         onEdgeClick={(_, edge) => select({ type: "channel", id: edge.id })}
         nodesConnectable={false}
-        fitView
+        deleteKeyCode={null}
         minZoom={0.3}
         maxZoom={1.8}
         colorMode="dark"
@@ -401,13 +326,22 @@ function GraphContent() {
       >
         <Background color="#27314c" gap={22} size={1} />
         <Controls showInteractive={false} />
+        <GraphViewport
+          container={container}
+          identity={key}
+          count={team.length}
+        />
       </ReactFlow>
     </div>
   );
 }
 
-export function AgentGraph() {
-  const { snapshot, defaults, events } = useRoom();
+export function AgentGraph({ onEdit }: { onEdit?: () => void }) {
+  const { snapshot, defaults, events, runId } = useRoom();
+  const teamKey =
+    (snapshot?.manifest.settings || defaults)?.team
+      .map((agent) => agent.name)
+      .join("|") || "empty";
   const latest = events.at(-1);
   return (
     <section className="graph-card">
@@ -423,6 +357,12 @@ export function AgentGraph() {
           </h2>
         </div>
         <div className="graph-phase">
+          {onEdit && (
+            <button className="button" onClick={onEdit} disabled={!defaults}>
+              <Pencil size={13} />
+              Edit team
+            </button>
+          )}
           <Badge
             status={
               snapshot?.running
@@ -446,7 +386,7 @@ export function AgentGraph() {
         </div>
       </header>
       <div className="graph-viewport">
-        <ReactFlowProvider>
+        <ReactFlowProvider key={`${runId || "defaults"}:${teamKey}`}>
           <GraphContent />
         </ReactFlowProvider>
         <div className="graph-legend">

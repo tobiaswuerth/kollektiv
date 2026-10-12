@@ -7,6 +7,10 @@ review each other's work, and revise the result. Runs use **LangGraph** for orch
 The earlier experiments live in `_archive/v1`, `_archive/v2`, and `_archive/v3`.
 The current implementation is in `src/kollektiv`.
 
+![Kollektiv: configure a team, step through a mission and inspect live messages](docs/control-room.gif)
+
+This short recording uses scripted model responses with the real graph, tools and checkpoints.
+
 ## Start
 
 Requires Python 3.11+ and Ollama with the model installed. From the repository root:
@@ -20,8 +24,10 @@ uv run kollektiv serve --open
 
 If Ollama is not already running, start `ollama serve` in a separate terminal.
 No cloud credentials are required. Open `http://127.0.0.1:8765` for the agent graph control room.
-To run from the terminal, use `uv run kollektiv run --goal-file examples/smoke.txt`.
-The example takes several model calls; progress appears as agents respond. Ollama speed depends
+To try a mission, choose **New collective → Mission sample** in the UI. Easy, medium and elaborate
+samples load editable goals and matching task budgets. Each tier has two offline examples.
+From the terminal, use `uv run kollektiv run "Write a short poem about a robot in poem.md"`.
+A mission takes several model calls; progress appears as agents respond. Ollama speed depends
 on the machine and the amount of content requested.
 
 With pip instead of uv:
@@ -36,12 +42,12 @@ py -3.12 -m venv .venv
 For a longer goal, put the full requirements in a UTF-8 file:
 
 ```powershell
-uv run kollektiv run --goal-file examples/story.txt
-uv run kollektiv run --goal-file examples/software.txt
+uv run kollektiv run --goal-file mission.txt
 uv run kollektiv run "Research ways to structure a multiplayer Pong project and write a sourced plan in plan.md" --web
 ```
 
-The examples are deliberately small enough for a local model. Larger projects can use a larger model and larger context and output budgets through configuration.
+Create `mission.txt` with your own requirements. The UI's mission samples start small; elaborate
+missions take longer and may benefit from a larger model or larger context and output budgets.
 
 ## How the collective works
 
@@ -54,7 +60,7 @@ The default team has four distinct personas:
 | `builder` | Implement and author complete deliverables | File tools, messages, notes |
 | `reviewer` | Independently review artifacts and assess the entire goal | Read files, deterministic checks, messages, notes |
 
-1. **Discuss and research.** Every persona contributes recommendations and sends messages.
+1. **Discuss and research.** Every persona contributes recommendations and can send permitted messages.
    A second round lets teammates respond to their inboxes. With `--web`, researchers can search
    and browse before the plan is created.
 2. **Plan.** The coordinator produces a validated plan with phases, one file per task, exact
@@ -98,6 +104,26 @@ independent tabbed panes, so messages and live debug can stay visible together. 
 also show memory, state or artifacts. Resize the dock height and pane split with the handles
 or their keyboard arrow controls. On narrow screens, the panes stack and the inspector becomes
 a dismissible drawer. Animations respect the operating system's reduced-motion preference.
+
+**Edit team** opens a draft configuration. Add or remove agents; select a person to edit its name,
+role, instructions, skills, model and tool permissions. Choose the coordinator and reviewer.
+Drag from a source handle to another person's target handle to create a directed communication
+path. Use a path's remove button to delete it. Node positions are saved too.
+
+Save drafts to the server's configuration library, reload them, or export/import portable JSON.
+Presets live in `runs/_configurations/` by default and survive restarts. Creating a collective
+from the draft preserves the current run and starts a new run with its own team and layout.
+Saved configurations can omit a mission goal; starting a run requires one.
+
+Unrestricted messaging preserves the default team's behavior. With directed paths, discretionary
+messages can only reach permitted outgoing neighbors; broadcasts expand to those neighbors.
+Removing `send_message` disables those messages as well. Automatic review feedback, task status
+and admin instructions still reach their intended recipients; shared memory stays collective.
+These paths control communication, while task dependencies control execution order.
+
+The runtime graph preserves dragged positions across reloads and offers **Reset view** to bring
+all people into view. Resizing and run changes fit the graph after its nodes are measured;
+moving message packets follow the displayed path as nodes are dragged or the camera changes.
 
 Create a goal and configure its model/team, then start it or step through one graph node at a time.
 Steps include individual worker model calls, tool executions and reviews. Pause waits for the
@@ -154,13 +180,15 @@ uv run kollektiv resume runs/<run-id> --retry
 ## Configure the team and model
 
 ```powershell
-uv run kollektiv run --goal-file examples/story.txt --config examples/config.json
+uv run kollektiv run --goal-file mission.txt --config team.json
 uv run kollektiv run "Your full goal" --model gemma4:e4b --base-url http://localhost:11434
 uv run kollektiv resume runs/<run-id> --config overrides.json
 ```
 
 Configuration is JSON. Omitted settings use defaults; resume configuration overrides only supplied
 top-level fields. See [Settings and Agent](src/kollektiv/config.py) for the full validated schema.
+`--config` also accepts a team configuration exported from the editor. Its settings are applied;
+the CLI goal argument or goal file supplies the mission.
 
 | Setting | Default | Effect |
 | --- | --- | --- |
@@ -177,6 +205,7 @@ top-level fields. See [Settings and Agent](src/kollektiv/config.py) for the full
 | `max_goal_revisions` | `2` | Whole-goal correction rounds |
 | `structured_retries` | `2` | Schema repair retries using validation feedback |
 | `web_enabled` | `false` | Permit web tools for personas configured with them |
+| `communication_links` | `null` | Unrestricted optional messaging; a list of `{source, target}` paths restricts it, and `[]` disables it |
 
 A custom `team` replaces the whole roster. Each agent has `name`, `role`, `persona`, `skills`,
 `tools`, and an optional `model`. The `coordinator` and `reviewer` settings name two different team
@@ -220,6 +249,7 @@ graph, mission overview, inspector, dock and intervention forms. Components cons
 snapshots and events through `api.ts`; `useRuntime.ts` owns polling and reconnection.
 
 The compiled frontend is checked into `src/kollektiv/web/` and included in the Python package.
+It ships one JavaScript bundle for compatibility with existing control-room processes.
 Running the control room needs no Node installation. To change its source, install Node 20.19+
 or 22.12+ and run:
 
@@ -247,6 +277,18 @@ elsewhere, install Playwright Chromium with `npx playwright install chromium`, o
 `BROWSER_PATH` to a browser executable. Port 8767 must be free so the test can create its own
 temporary workspace.
 
+To regenerate the README recording with Playwright and FFmpeg, start a separate scripted demo
+server from the repository root, then record from `frontend/` in another terminal:
+
+```powershell
+uv run python tests/ui_server.py --port 8768 --delay 0.12
+# In the second terminal:
+cd frontend
+npm run demo:record
+```
+
+The recorder uses only this temporary server; it never modifies normal runs.
+
 Run the Python checks from the repository root:
 
 ```powershell
@@ -264,3 +306,6 @@ confinement. `doctor --generate` and the smoke goal exercise the installed Ollam
 The implementation follows the official
 [LangGraph orchestrator/worker and evaluator/optimizer patterns](https://docs.langchain.com/oss/python/langgraph/workflows-agents)
 and [ChatOllama integration](https://docs.langchain.com/oss/python/integrations/chat/ollama).
+
+See [mcp_research.md](mcp_research.md) for researched local MCP hosting options, compatibility
+constraints and a staged integration proposal. MCP integration is a future option.

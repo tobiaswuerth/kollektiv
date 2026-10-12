@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useRoom } from "../store";
 import { Modal } from "./ui";
+import { applyMissionSample } from "../missionSamples";
+import { MissionSamplePicker } from "./MissionSamplePicker";
 import type { Settings } from "../types";
 export type Action = { kind: string; fields?: Record<string, string> };
 export function ActionDialog({
@@ -10,16 +12,16 @@ export function ActionDialog({
   action: Action;
   close: () => void;
 }) {
-  const { defaults, snapshot, createRun, intervene } = useRoom();
+  const { defaults, snapshot, missionSamples, createRun, intervene } =
+    useRoom();
   const config = snapshot?.manifest.settings || defaults!;
   const [goal, setGoal] = useState(
     action.kind === "revise_goal" ? snapshot?.manifest.goal || "" : "",
   );
   const [model, setModel] = useState(config.model),
     [concurrency, setConcurrency] = useState(config.max_concurrency);
-  const [settings, setSettings] = useState(
-    JSON.stringify(action.kind === "create" ? defaults : config, null, 2),
-  );
+  const [settings, setSettings] = useState(JSON.stringify(config, null, 2));
+  const [sampleId, setSampleId] = useState("");
   const [content, setContent] = useState(""),
     [recipient, setRecipient] = useState(action.fields?.recipient || "all");
   const [owner, setOwner] = useState(""),
@@ -34,6 +36,25 @@ export function ActionDialog({
       reassign_task: "Reassign task",
       revise_goal: "Edit the shared goal",
     }[action.kind] || "Intervene";
+  const loadSample = (id: string) => {
+    if (!id) {
+      setSampleId("");
+      return;
+    }
+    const selected = missionSamples.find((item) => item.id === id);
+    if (!selected) return;
+    try {
+      const loaded = applyMissionSample(selected, JSON.parse(settings));
+      setGoal(loaded.goal);
+      setSettings(JSON.stringify(loaded.settings, null, 2));
+      setSampleId(id);
+      setError("");
+    } catch {
+      setError(
+        "Fix the advanced settings JSON before loading a mission sample.",
+      );
+    }
+  };
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBusy(true);
@@ -68,6 +89,13 @@ export function ActionDialog({
       <form onSubmit={submit}>
         {["create", "revise_goal"].includes(action.kind) && (
           <>
+            {action.kind === "create" && (
+              <MissionSamplePicker
+                samples={missionSamples}
+                value={sampleId}
+                onChange={loadSample}
+              />
+            )}
             <label htmlFor="goal-input">Shared goal</label>
             <textarea
               id="goal-input"

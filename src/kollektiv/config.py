@@ -36,6 +36,13 @@ class Agent(BaseModel):
     model: str | None = None
 
 
+class CommunicationLink(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: str
+    target: str
+
+
 def default_team() -> list[Agent]:
     return [
         Agent(
@@ -100,6 +107,7 @@ class Settings(BaseModel):
     team: list[Agent] = Field(default_factory=default_team, min_length=3)
     coordinator: str = "coordinator"
     reviewer: str = "reviewer"
+    communication_links: list[CommunicationLink] | None = None
 
     @model_validator(mode="after")
     def validate_team(self) -> "Settings":
@@ -112,7 +120,36 @@ class Settings(BaseModel):
             raise ValueError("The coordinator and reviewer must be different agents")
         if not any("write_file" in a.tools and a.name != self.reviewer for a in self.team):
             raise ValueError("The team needs a worker with write_file access")
+        if self.communication_links is not None:
+            pairs = [(link.source, link.target) for link in self.communication_links]
+            if len(pairs) != len(set(pairs)):
+                raise ValueError("Communication paths must be unique")
+            if any(source not in names or target not in names for source, target in pairs):
+                raise ValueError("Communication paths must connect members of the team")
+            if any(source == target for source, target in pairs):
+                raise ValueError("Communication paths must connect two different agents")
         return self
 
     def agent(self, name: str) -> Agent:
         return next(a for a in self.team if a.name == name)
+
+    def allowed_recipients(self, sender: str) -> list[str]:
+        """Optional messages follow directed paths and the sender's tool permissions."""
+        if "send_message" not in self.agent(sender).tools:
+            return []
+        targets = (
+            [agent.name for agent in self.team]
+            if self.communication_links is None
+            else [link.target for link in self.communication_links if link.source == sender]
+        )
+        return [*targets, "all"] if targets else []
+
+    def message_recipients(self, sender: str, recipient: str) -> list[str]:
+        if recipient not in self.allowed_recipients(sender):
+            raise ValueError(
+                f"{sender} cannot send to {recipient!r}; allowed recipients: "
+                f"{self.allowed_recipients(sender)}"
+            )
+        if recipient == "all" and self.communication_links is not None:
+            return [link.target for link in self.communication_links if link.source == sender]
+        return [recipient]

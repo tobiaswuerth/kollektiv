@@ -8,6 +8,7 @@ from pathlib import Path
 import httpx
 
 from .config import Settings
+from .configurations import TeamConfiguration
 from .llm import Models, json_text
 from .models import Contribution
 from .runtime import Collective
@@ -16,7 +17,14 @@ from .workspace import Workspace
 
 
 def read_config(path: str | None) -> dict:
-    return json.loads(Path(path).read_text(encoding="utf-8")) if path else {}
+    if not path:
+        return {}
+    payload = json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    if not isinstance(payload, dict):
+        raise ValueError("Configuration must be a JSON object")
+    if payload.get("version") == 1 and "settings" in payload:
+        return TeamConfiguration.model_validate(payload).settings.model_dump()
+    return payload
 
 
 def progress(event: dict) -> None:

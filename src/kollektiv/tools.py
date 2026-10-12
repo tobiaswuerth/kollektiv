@@ -85,10 +85,12 @@ class Toolkit:
                 raise ValueError("Unknown teammate; use an exact name from the team roster")
             if not content.strip() or len(content) > 6000:
                 raise ValueError("Messages need 1 to 6000 characters")
-            message = record(self.agent, content, recipient=recipient)
-            self.messages[message["id"]] = message
-            self.emit("message", **message)
-            return json.dumps({"delivered": True, "recipient": recipient})
+            recipients = self.settings.message_recipients(self.agent, recipient)
+            for target in recipients:
+                message = record(self.agent, content, recipient=target)
+                self.messages[message["id"]] = message
+                self.emit("message", **message)
+            return json.dumps({"delivered": True, "recipient": recipient, "recipients": recipients})
 
         @tool
         def share_note(content: str) -> str:

@@ -75,18 +75,25 @@ class Workflow:
             "team": roster,
             "shared_memory": list(state.get("notes", {}).values())[-20:],
             "your_inbox": visible_messages(state.get("messages", {}), agent),
+            "allowed_message_recipients": self.settings.allowed_recipients(agent),
             "team_findings": list(state.get("contributions", {}).values())[-len(roster) :],
         }
         return json_text(context)
 
     def discussion(self, state: DiscussionState) -> dict:
         name = state["agent_name"]
+        recipients = self.settings.allowed_recipients(name)
+        message_instruction = (
+            "Send at least one useful message using an allowed_message_recipients entry. "
+            if recipients
+            else "No outgoing message channel is available. Return an empty messages list. "
+        )
         prompt = (
             f"Shared goal:\n{state['goal']}\nDiscussion round {state['discussion_round']}.\n"
             f"{self.team_context(state, name)}\n"
             "Contribute from your own expertise. Discuss a concrete approach, useful conventions, "
             "risks to completion and how teammates should collaborate. Respond to your inbox. "
-            "Send at least one useful message to a teammate. Keep findings focused, about 150 words. "
+            f"{message_instruction}Keep findings focused, about 150 words. "
             "If no web tools are used, label outside facts as assumptions; never invent sources."
         )
         toolkit = Toolkit(self.settings, self.workspace, name, None, self.emit)
@@ -113,18 +120,18 @@ class Workflow:
             prompt += "\nResearch observations:\n" + "\n".join(research)[-24000:]
 
         def validate(contribution: Contribution) -> None:
-            valid = {a.name for a in self.settings.team} | {"all"}
-            if any(m.recipient not in valid for m in contribution.messages):
-                raise ValueError(f"Recipients must be in {sorted(valid)}")
-            if not contribution.messages:
+            for draft in contribution.messages:
+                self.settings.message_recipients(name, draft.recipient)
+            if recipients and not contribution.messages:
                 raise ValueError("Include at least one actionable message to a teammate")
 
         result = self.models.structured(name, Contribution, prompt, validate)
         messages = dict(toolkit.messages)
         for draft in result.messages:
-            message = record(name, draft.content, recipient=draft.recipient)
-            messages[message["id"]] = message
-            self.emit("message", **message)
+            for recipient in self.settings.message_recipients(name, draft.recipient):
+                message = record(name, draft.content, recipient=recipient)
+                messages[message["id"]] = message
+                self.emit("message", **message)
         key = f"{state['discussion_round']}:{name}"
         note = record(name, result.findings, round=state["discussion_round"])
         return {
@@ -332,7 +339,11 @@ class Workflow:
             )
             review = self.models.structured(self.settings.reviewer, TaskReview, prompt)
         message = record(
-            self.settings.reviewer, review.feedback, recipient=task["owner"], task=task["id"]
+            self.settings.reviewer,
+            review.feedback,
+            recipient=task["owner"],
+            task=task["id"],
+            system=True,
         )
         self.emit("message", **message)
         return {
@@ -393,6 +404,7 @@ class Workflow:
             f"{task['title']}: {result['status']}. {review['feedback']}",
             recipient="all",
             task=task["id"],
+            system=True,
         )
         self.emit("message", **message)
         return {
@@ -565,7 +577,7 @@ class Workflow:
                 for t in tasks.values()
             ],
         }
-        message = record(self.settings.reviewer, review["feedback"], recipient="all")
+        message = record(self.settings.reviewer, review["feedback"], recipient="all", system=True)
         self.emit("message", **message)
         return {
             "tasks": tasks,

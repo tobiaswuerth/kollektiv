@@ -6,6 +6,8 @@ export type Agent = {
   tools: string[];
   model?: string;
 };
+export type CommunicationLink = { source: string; target: string };
+export type GraphPosition = { x: number; y: number };
 export type Settings = {
   model: string;
   base_url: string;
@@ -14,7 +16,25 @@ export type Settings = {
   reviewer: string;
   max_concurrency: number;
   web_enabled: boolean;
+  communication_links?: CommunicationLink[] | null;
   [key: string]: unknown;
+};
+export type TeamConfiguration = {
+  version: 1;
+  id?: string;
+  name: string;
+  goal: string;
+  settings: Settings;
+  positions: Record<string, GraphPosition>;
+  updated_at?: string;
+};
+export type MissionSample = {
+  id: string;
+  title: string;
+  difficulty: "easy" | "medium" | "elaborate";
+  description: string;
+  goal: string;
+  settings?: Partial<Settings>;
 };
 export type Task = {
   id: string;
@@ -74,6 +94,7 @@ export type Run = {
   goal: string;
   status: string;
   settings: Settings;
+  positions?: Record<string, GraphPosition>;
   running?: boolean;
 };
 export type Snapshot = {
