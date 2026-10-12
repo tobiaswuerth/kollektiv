@@ -92,14 +92,18 @@ class RunControl:
             self._condition.notify_all()
         self.changed()
 
-    def enter(self, node: str, **fields) -> str:
+    def enter(self, node: str, *, cancel: Callable[[], bool] | None = None, **fields) -> str:
         token = uuid4().hex
         with self._condition:
             self._waiting += 1
             try:
                 while self._mode == "paused" and self._steps == 0:
+                    if cancel and cancel():
+                        raise RunStopped("Sub-agent retired while paused")
                     self._condition.notify_all()
-                    self._condition.wait()
+                    self._condition.wait(timeout=0.1 if cancel else None)
+                if cancel and cancel():
+                    raise RunStopped("Sub-agent retired at a graph boundary")
                 if self._mode in ("stopped", "finished"):
                     raise RunStopped("Stopped at a graph boundary; progress is resumable")
                 if self._mode == "paused":

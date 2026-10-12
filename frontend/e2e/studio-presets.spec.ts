@@ -128,3 +128,88 @@ for (const id of ["scientific-paper-lab", "fifty-page-novel-studio"]) {
     expect(errors).toEqual([]);
   });
 }
+
+test("easy samples replace a studio with a compact graph through both creation flows", async ({
+  page,
+  request,
+}) => {
+  const { settings } = await (await request.get("/api/bootstrap")).json();
+  const studio = samples.find(
+    (sample) => sample.id === "fifty-page-novel-studio",
+  )!;
+  const baseline = await (
+    await request.post("/api/runs", {
+      data: {
+        goal: studio.goal,
+        settings: { ...settings, ...studio.settings },
+        positions: studio.positions,
+      },
+    })
+  ).json();
+  await page.goto("/");
+  await page.locator("#run-select").selectOption(baseline.manifest.run_id);
+  await expect(page.locator(".person-card")).toHaveCount(14);
+  await page
+    .getByRole("button", { name: "New collective", exact: true })
+    .click();
+  const dialog = page.getByRole("dialog", {
+    name: "Create a collective",
+    exact: true,
+  });
+  await dialog
+    .getByLabel("Mission sample", { exact: true })
+    .selectOption("pip-field-card");
+  const createdResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/runs") &&
+      response.request().method() === "POST",
+  );
+  await dialog
+    .getByRole("button", { name: "Create collective", exact: true })
+    .click();
+  const created = (await (await createdResponse).json()) as Snapshot;
+  expect(created.manifest.settings.team).toHaveLength(3);
+  expect(Object.keys(created.manifest.positions!)).toHaveLength(3);
+  await expect(page.locator(".person-card")).toHaveCount(3);
+  await page.getByRole("button", { name: "Edit team", exact: true }).click();
+  const editor = page.getByRole("dialog", {
+    name: "Edit collective",
+    exact: true,
+  });
+  for (const id of [
+    "fifty-page-novel-studio",
+    "picnic-plan",
+    "hire-a-garden-specialist",
+  ]) {
+    await editor
+      .getByRole("button", { name: "Mission & samples", exact: true })
+      .click();
+    await editor.getByLabel("Mission sample", { exact: true }).selectOption(id);
+    await expect(editor.locator(".draft-agent")).toHaveCount(
+      id === "fifty-page-novel-studio" ? 14 : 3,
+    );
+  }
+  const gardenResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith("/api/runs") &&
+      response.request().method() === "POST",
+  );
+  await editor
+    .getByRole("button", { name: "Create collective", exact: true })
+    .click();
+  const garden = (await (await gardenResponse).json()) as Snapshot;
+  expect(garden.manifest.settings.team).toHaveLength(3);
+  expect(
+    garden.manifest.settings.team.find((agent) => agent.name === "builder")!
+      .tools,
+  ).toEqual(
+    expect.arrayContaining([
+      "hire",
+      "fire",
+      "monitor_agents",
+      "instruct_agent",
+    ]),
+  );
+  expect(garden.manifest.settings.max_dynamic_agents).toBe(1);
+  await expect(page.locator(".person-card")).toHaveCount(3);
+});

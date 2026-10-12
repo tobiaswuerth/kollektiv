@@ -10,7 +10,7 @@ describe("mission samples", () => {
   it("provides every difficulty when an older server omits or empties the catalogue", () => {
     for (const samples of [undefined, []]) {
       const loaded = missionCatalogue(samples);
-      expect(loaded).toHaveLength(8);
+      expect(loaded).toHaveLength(bundledMissionSamples.length);
       expect(new Set(loaded.map((sample) => sample.difficulty))).toEqual(
         new Set(["easy", "medium", "elaborate"]),
       );
@@ -54,6 +54,54 @@ describe("mission samples", () => {
       expect(current.team).toHaveLength(0);
     }
   });
+  it("replaces either large studio with a genuinely small easy or medium team", () => {
+    const local = {
+      model: "my-local-model",
+      base_url: "http://localhost:9999",
+      max_concurrency: 2,
+      web_enabled: false,
+      coordinator: "lead",
+      reviewer: "reviewer",
+      team: [],
+      communication_links: [],
+    } satisfies Settings;
+    for (const studioId of [
+      "scientific-paper-lab",
+      "fifty-page-novel-studio",
+    ]) {
+      const studio = bundledMissionSamples.find(
+        (sample) => sample.id === studioId,
+      )!;
+      const current = applyMissionSample(studio, local).settings;
+      for (const [sampleId, count] of [
+        ["pip-field-card", 3],
+        ["picnic-plan", 3],
+        ["pip-silent-adventure", 4],
+        ["board-game-kit", 4],
+      ] as const) {
+        const sample = bundledMissionSamples.find(
+          (entry) => entry.id === sampleId,
+        )!;
+        const result = applyMissionSample(sample, current);
+        const names = new Set(result.settings.team.map((agent) => agent.name));
+        expect(result.settings.team).toHaveLength(count);
+        expect(new Set(Object.keys(result.positions!))).toEqual(names);
+        expect(result.settings.communication_links).toEqual(
+          sample.settings!.communication_links,
+        );
+        expect(result.settings.max_tasks).toBeLessThanOrEqual(6);
+        expect(result.settings.num_ctx).toBe(32768);
+        expect(result.settings.num_predict).toBe(4096);
+        expect(result.settings.context_chars).toBe(24000);
+        expect(result.settings.request_timeout).toBe(180);
+        expect(result.settings.web_enabled).toBe(false);
+        expect(result.settings.model).toBe(local.model);
+        expect(result.settings.base_url).toBe(local.base_url);
+        expect(result.settings.max_concurrency).toBe(local.max_concurrency);
+        expect(current.team).toHaveLength(studio.settings!.team!.length);
+      }
+    }
+  });
   it("loads the mission's budget while preserving the edited graph, model, and concurrency", () => {
     const settings = {
       model: "my-local-model",
@@ -92,5 +140,33 @@ describe("mission samples", () => {
     expect(loaded.settings.model).toBe(settings.model);
     expect(loaded.settings.max_concurrency).toBe(3);
     expect(settings.max_tasks).toBe(24);
+  });
+  it("provides a three-agent easy hiring mission with one narrowly permitted manager", () => {
+    const sample = bundledMissionSamples.find(
+      (entry) => entry.id === "hire-a-garden-specialist",
+    )!;
+    expect(sample.difficulty).toBe("easy");
+    expect(sample.settings!.team).toHaveLength(3);
+    const writer = sample.settings!.team!.find(
+      (agent) => agent.name === "builder",
+    )!;
+    expect(writer.tools).toEqual(
+      expect.arrayContaining([
+        "hire",
+        "fire",
+        "monitor_agents",
+        "instruct_agent",
+      ]),
+    );
+    for (const agent of sample.settings!.team!.filter(
+      (entry) => entry.name !== "builder",
+    ))
+      expect(agent.tools).not.toContain("hire");
+    expect(sample.settings!.max_dynamic_agents).toBe(1);
+    expect(sample.goal).toContain("delegates/herb_specialist/notes.md");
+    expect(sample.goal).toContain(
+      "retire the completed helper while retaining its notes",
+    );
+    expect(Object.keys(sample.positions!)).toHaveLength(3);
   });
 });

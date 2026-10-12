@@ -1,5 +1,5 @@
 import { useRoom } from "./store";
-import type { RuntimeEvent, Snapshot, Task } from "./types";
+import type { Agent, RuntimeEvent, Snapshot, Specialist, Task } from "./types";
 export const tones = [
   "#8b8fff",
   "#43c5e5",
@@ -12,6 +12,52 @@ export const tones = [
 export const time = (at?: string) =>
   at ? new Date(at).toLocaleTimeString([], { hour12: false }) : "";
 export const nice = (text?: string) => (text || "").replaceAll("_", " ");
+export function specialists(snapshot: Snapshot | null): Specialist[] {
+  return Object.values(snapshot?.delegation?.agents || {});
+}
+export function activeTeam(
+  snapshot: Snapshot | null,
+  fallback: Agent[] = [],
+): Agent[] {
+  return [
+    ...(snapshot?.manifest.settings.team || fallback),
+    ...specialists(snapshot).filter((agent) => agent.status !== "retired"),
+  ];
+}
+export function agentHistory(
+  agent: Specialist,
+  events: RuntimeEvent[],
+): RuntimeEvent[] {
+  const history = new Map<string, RuntimeEvent>();
+  (agent.history || []).forEach((event) => history.set(event.id, event));
+  events
+    .filter(
+      (event) =>
+        event.agent === agent.name ||
+        event.sender === agent.name ||
+        event.recipient === agent.name ||
+        event.child === agent.id,
+    )
+    .forEach((event) => history.set(event.id, event));
+  return [...history.values()].sort((a, b) =>
+    (a.at || "").localeCompare(b.at || ""),
+  );
+}
+export function canGuideSpecialist(agent: Specialist) {
+  return !["completed", "failed", "retired"].includes(agent.status);
+}
+export function specialistMode(agent: Specialist) {
+  return {
+    pending: "pending",
+    running: "working",
+    awaiting_children: "pending",
+    reviewing: "reviewing",
+    completed: "completed",
+    failed: "failed",
+    interrupted: "interrupted",
+    retired: "retired",
+  }[agent.status];
+}
 export function canAdmin(snapshot: Snapshot | null) {
   return (
     !!snapshot &&

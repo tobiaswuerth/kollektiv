@@ -19,6 +19,8 @@
     "max_concurrency": 1,
     "context_chars": 300000,
     "max_file_bytes": 2000000,
+    "max_dynamic_agents": 8,
+    "max_hires": 48,
     "web_enabled": true,
     "team": [
       {

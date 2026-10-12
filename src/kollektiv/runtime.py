@@ -15,6 +15,7 @@ from langgraph.types import StateSnapshot
 
 from .config import Settings
 from .control import RunControl, RunStopped
+from .delegation import DelegationManager
 from .llm import json_text
 from .models import Plan, Task
 from .tools import record
@@ -70,6 +71,23 @@ class Collective:
         self._run_mutex = threading.Lock()
         self._active_control: RunControl | None = None
         self._database_init_lock = threading.Lock()
+        self._delegation: DelegationManager | None = None
+
+    @property
+    def delegation(self) -> DelegationManager:
+        with self._database_init_lock:
+            if self._delegation is None:
+                self._delegation = DelegationManager(
+                    self.directory, self.settings, self.workspace, self.emit
+                )
+            return self._delegation
+
+    def inspected_state(self, state: dict) -> dict:
+        return {
+            **state,
+            "delegation": self.delegation.snapshot(),
+            "messages": {**state.get("messages", {}), **self.delegation.all_messages()},
+        }
 
     @classmethod
     def create(
@@ -148,14 +166,23 @@ class Collective:
                     connection.execute("PRAGMA journal_mode=WAL")
                 saver = SqliteSaver(connection)
                 saver.setup()
-            workflow = Workflow(self.settings, self.workspace, self.emit, self.models, control)
+            workflow = Workflow(
+                self.settings,
+                self.workspace,
+                self.emit,
+                self.models,
+                control,
+                delegation=self.delegation,
+            )
             yield workflow.build(saver), workflow
         finally:
             connection.close()
 
     def state(self, include_workers: bool = False) -> dict:
         if not (self.directory / "checkpoints.sqlite").exists():
-            return {"status": self.manifest["status"], "goal": self.manifest["goal"], "tasks": {}}
+            return self.inspected_state(
+                {"status": self.manifest["status"], "goal": self.manifest["goal"], "tasks": {}}
+            )
         with self.graph() as (graph, _):
             snapshot = graph.get_state(self.graph_config, subgraphs=include_workers)
             result = snapshot.values or {"status": self.manifest["status"], "tasks": {}}
@@ -173,9 +200,10 @@ class Collective:
                         if isinstance(task.state, StateSnapshot)
                     ],
                 }
-            return result
+            return self.inspected_state(result)
 
     def export(self, state: dict) -> None:
+        state = self.inspected_state(state)
         atomic_write(self.directory / "state.json", json_text(state))
         if "plan" in state:
             atomic_write(self.directory / "plan.json", json_text(state["plan"]))
@@ -220,6 +248,78 @@ class Collective:
         if self.manifest.get("last_error"):
             report.extend(["", "## Interruption", "", self.manifest["last_error"]])
         atomic_write(self.directory / "report.md", "\n".join(report) + "\n")
+
+    def execute_child(self, job: dict, child_control: RunControl, control: RunControl | None):
+        """Resume a private worker thread using the same tools, review and checkpoints."""
+        manager = self.delegation
+
+        def emit(kind, **fields):
+            manager.progress(job["name"], kind, **fields)
+            return self.emit(kind, **fields)
+
+        connection = sqlite3.connect(
+            self.directory / "delegate-checkpoints.sqlite", check_same_thread=False, timeout=30
+        )
+        try:
+            with self._database_init_lock:
+                connection.execute("PRAGMA journal_mode=WAL")
+                saver = SqliteSaver(connection)
+                saver.setup()
+            workflow = Workflow(
+                manager.child_settings(job["name"]),
+                self.workspace,
+                emit,
+                self.models,
+                control,
+                delegation=manager,
+                child_control=child_control,
+            )
+            graph = workflow.build_worker(saver, full_state=True)
+            config = {**self.graph_config, "configurable": {"thread_id": job["thread_id"]}}
+            snapshot = graph.get_state(config)
+            initial = (
+                None
+                if snapshot.values
+                else {
+                    "goal": self.manifest["goal"],
+                    "run_id": self.manifest["run_id"],
+                    "task": {
+                        "id": job["task_id"],
+                        "title": job["role"],
+                        "phase": "Delegated work",
+                        "description": job["assignment"],
+                        "owner": job["name"],
+                        "output": job["output"],
+                        "dependencies": [],
+                        "input_files": job["input_files"],
+                        "acceptance_criteria": job["acceptance_criteria"],
+                    },
+                    "plan_summary": f"Specialist hired by {job['parent']}: {job['assignment']}",
+                    "attempt": 1,
+                    "steps": 0,
+                    "feedback": "",
+                    "history": [],
+                    "events": {},
+                    "messages": {},
+                    "notes": {},
+                    "results": {},
+                }
+            )
+            if snapshot.values and not snapshot.next:
+                return snapshot.values
+            for values in graph.stream(initial, config, stream_mode="values"):
+                manager.checkpoint(job["name"], values)
+            return graph.get_state(config).values
+        finally:
+            connection.close()
+
+    @contextmanager
+    def delegation_execution(self, control):
+        self.delegation.start(lambda job, child: self.execute_child(job, child, control))
+        try:
+            yield
+        finally:
+            self.delegation.stop()
 
     def changed_artifacts(self, state: dict) -> set[str]:
         changed = set()
@@ -292,7 +392,11 @@ class Collective:
         control: RunControl | None = None,
     ) -> dict:
         self._on_event = on_event
-        with run_lock(self.directory / ".run.lock"), self.graph(control) as (graph, workflow):
+        with (
+            run_lock(self.directory / ".run.lock"),
+            self.graph(control) as (graph, workflow),
+            self.delegation_execution(control),
+        ):
             snapshot = graph.get_state(self.graph_config)
             state = snapshot.values
             if state and "plan" in state:
@@ -311,7 +415,7 @@ class Collective:
             if state and not snapshot.next:
                 if state.get("status") == "completed":
                     self.export(state)
-                    return state
+                    return self.inspected_state(state)
                 if state.get("status") == "incomplete" and retry:
                     review = state.get("goal_review", {})
                     if review and not review.get("achieved"):
@@ -329,7 +433,7 @@ class Collective:
                         )
                 else:
                     self.export(state)
-                    return state
+                    return self.inspected_state(state)
             initial = (
                 None
                 if state
@@ -360,7 +464,7 @@ class Collective:
                     self.export(current)
                 final = graph.get_state(self.graph_config).values
                 self.export(final)
-                return final
+                return self.inspected_state(final)
             except RunStopped:
                 raise
             except BaseException as exc:
@@ -372,6 +476,21 @@ class Collective:
 
     def admin(self, action: str, control: RunControl | None = None, **fields) -> dict:
         """Apply an explicit operator edit to a quiescent checkpoint, then reschedule work."""
+        if action in ("instruct_agent", "fire_agent"):
+            identity = str(fields.get("agent_id", ""))
+            if action == "instruct_agent":
+                self.delegation.instruct(
+                    "admin", identity, str(fields.get("content", "")), admin=True
+                )
+            else:
+                self.delegation.fire(
+                    "admin",
+                    identity,
+                    str(fields.get("reason", "Operator retired this specialist")),
+                    admin=True,
+                )
+            self.emit("admin", action=action, **fields)
+            return self.state(include_workers=True)
         if not self._running_done.is_set():
             if control is None or control is not self._active_control:
                 raise RunBusyError("Pause this run's active control before editing")
@@ -392,6 +511,7 @@ class Collective:
                     {**self.settings.model_dump(), **fields.get("settings", {})}
                 )
                 self.settings = settings
+                self._delegation = None
                 self.workspace.max_bytes = settings.max_file_bytes
                 self.manifest.update(goal=goal, settings=settings.model_dump())
                 self.export({"status": "created", "goal": goal, "tasks": {}})

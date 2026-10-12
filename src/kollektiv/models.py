@@ -132,11 +132,28 @@ class DiscussionState(TypedDict):
     notes: dict[str, dict]
 
 
+class StaffingState(DiscussionState, total=False):
+    messages: Annotated[dict[str, dict], merge_records]
+    notes: Annotated[dict[str, dict], merge_records]
+    contributions: Annotated[dict[str, dict], merge_records]
+    history: Annotated[list, operator.add]
+    reply: Any
+    steps: int
+    finished: bool
+    delegation_revision: int
+    delegation_changed: bool
+    events: Annotated[dict[str, dict], merge_records]
+
+
 class WorkerOutput(TypedDict, total=False):
     results: Annotated[dict[str, dict], merge_records]
     messages: Annotated[dict[str, dict], merge_records]
     notes: Annotated[dict[str, dict], merge_records]
     events: Annotated[dict[str, dict], merge_records]
+
+
+class DiscussionOutput(WorkerOutput, total=False):
+    contributions: Annotated[dict[str, dict], merge_records]
 
 
 class WorkerState(WorkerOutput, total=False):
@@ -151,3 +168,5 @@ class WorkerState(WorkerOutput, total=False):
     finished: bool
     feedback: str
     review: dict
+    delegation_revision: int
+    delegation_changed: bool

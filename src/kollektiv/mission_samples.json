@@ -3,48 +3,603 @@
     "id": "pip-field-card",
     "title": "Pip's field card",
     "difficulty": "easy",
-    "description": "One short Markdown artifact with clear, checkable requirements.",
+    "description": "A tiny three-agent team writes and checks one 150–220 word robot field card. Offline.",
     "goal": "Create field_card.md, a 150 to 220 word field card for a fictional robot called Pip. Include the headings Appearance, Abilities, and A day with Pip. Pip is palm-sized, runs on sunlight, and never speaks. Explain how Pip communicates without speech and include a short example that follows all three facts. This single Markdown file is the required deliverable. Use imagination; no web research is needed.",
     "settings": {
       "max_tasks": 3,
       "max_steps": 8,
-      "discussion_rounds": 1
+      "discussion_rounds": 1,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "num_ctx": 32768,
+      "num_predict": 4096,
+      "context_chars": 24000,
+      "request_timeout": 180,
+      "web_enabled": false,
+      "coordinator": "coordinator",
+      "reviewer": "reviewer",
+      "team": [
+        {
+          "name": "coordinator",
+          "role": "Field-card coordinator",
+          "persona": "Plan exactly one field_card.md writing task for builder. Preserve the required headings, 150–220 word length, and Pip's three fixed facts. Keep the plan and discussion brief; this is a small creative task with no research or extra artifacts.",
+          "skills": [
+            "small-task planning",
+            "requirements"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "builder",
+          "role": "Robot field-card author",
+          "persona": "Write a vivid, complete field card about Pip in 150–220 words. Use the headings Appearance, Abilities, and A day with Pip. Pip is palm-sized, solar-powered, and never speaks; communicate through movement or light. Follow every fixed fact in the example scene. Use only the assigned file and keep content concrete.",
+          "skills": [
+            "creative writing",
+            "constraint following"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "reviewer",
+          "role": "Field-card fact checker",
+          "persona": "Independently read the actual field_card.md. Check its word count, all three headings, and every statement against Pip's size, energy source, and silence. Reject contradictions or missing requirements and give concise corrections. Do not create additional files.",
+          "skills": [
+            "independent review",
+            "word-count checking"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "communication_links": [
+        {
+          "source": "coordinator",
+          "target": "builder"
+        },
+        {
+          "source": "builder",
+          "target": "coordinator"
+        },
+        {
+          "source": "builder",
+          "target": "reviewer"
+        },
+        {
+          "source": "reviewer",
+          "target": "builder"
+        }
+      ]
+    },
+    "positions": {
+      "coordinator": {
+        "x": 50,
+        "y": 170
+      },
+      "builder": {
+        "x": 350,
+        "y": 170
+      },
+      "reviewer": {
+        "x": 650,
+        "y": 170
+      }
     }
   },
   {
     "id": "picnic-plan",
     "title": "A neighborhood picnic",
     "difficulty": "easy",
-    "description": "Practice planning and independent review with one concrete checklist.",
+    "description": "Three agents create one compact picnic checklist and independently check its timing and budget. Offline.",
     "goal": "Create picnic_plan.md for a fictional two-hour neighborhood picnic with 12 guests and a budget of 60 credits. Include a simple timetable, a supplies checklist, a budget table whose entries total no more than 60 credits, and a rainy-day alternative. Use invented prices and label them as estimates. Assign three organizer roles with clear duties. Keep the document under 400 words. This single Markdown file is the required deliverable; no web research is needed.",
     "settings": {
       "max_tasks": 3,
       "max_steps": 8,
-      "discussion_rounds": 1
+      "discussion_rounds": 1,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "num_ctx": 32768,
+      "num_predict": 4096,
+      "context_chars": 24000,
+      "request_timeout": 180,
+      "web_enabled": false,
+      "coordinator": "coordinator",
+      "reviewer": "reviewer",
+      "team": [
+        {
+          "name": "coordinator",
+          "role": "Picnic coordinator",
+          "persona": "Plan one picnic_plan.md task for builder. Preserve a two-hour event, twelve guests, a maximum budget of sixty credits, all required checklist sections, and a rainy-day alternative. Keep the task atomic and avoid extra planning or review artifacts.",
+          "skills": [
+            "event scope",
+            "small-task planning"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "builder",
+          "role": "Picnic planner and author",
+          "persona": "Produce a usable picnic_plan.md under 400 words. Include a two-hour timetable, supplies, exactly three organizer roles with duties, a clearly labeled estimated budget whose entries sum to no more than sixty credits, and a practical rain alternative. Invent prices honestly and verify the arithmetic before writing.",
+          "skills": [
+            "practical planning",
+            "budget arithmetic"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "reviewer",
+          "role": "Checklist and budget checker",
+          "persona": "Independently inspect the actual picnic plan. Add the budget entries, check the two-hour timetable and twelve-guest scale, verify three organizer duties, and confirm supplies, estimated-price labeling, rain option, and under-400-word length. Reject missing or inconsistent requirements with concrete corrections.",
+          "skills": [
+            "independent review",
+            "arithmetic checking"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "communication_links": [
+        {
+          "source": "coordinator",
+          "target": "builder"
+        },
+        {
+          "source": "builder",
+          "target": "coordinator"
+        },
+        {
+          "source": "builder",
+          "target": "reviewer"
+        },
+        {
+          "source": "reviewer",
+          "target": "builder"
+        }
+      ]
+    },
+    "positions": {
+      "coordinator": {
+        "x": 50,
+        "y": 170
+      },
+      "builder": {
+        "x": 350,
+        "y": 170
+      },
+      "reviewer": {
+        "x": 650,
+        "y": 170
+      }
     }
   },
   {
     "id": "pip-silent-adventure",
     "title": "Pip's silent adventure",
     "difficulty": "medium",
-    "description": "Two dependent files demonstrate shared design and a consistent handoff.",
+    "description": "Four agents share a robot design, write a dependent short scene, and check continuity. Offline.",
     "goal": "Create a two-part field guide for a fictional robot called Pip. First produce design.md describing Pip's appearance, nonverbal communication, and two rules: Pip runs on sunlight, and Pip never speaks. Then produce story.md containing a 120 to 180 word scene that names Pip and follows the design and both rules. The scene must show a problem and how Pip solves it. The story should depend on the completed design. These two Markdown files are the required deliverables. No web research is needed.",
     "settings": {
       "max_tasks": 6,
       "max_steps": 12,
-      "discussion_rounds": 2
+      "discussion_rounds": 2,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "num_ctx": 32768,
+      "num_predict": 4096,
+      "context_chars": 24000,
+      "request_timeout": 180,
+      "web_enabled": false,
+      "coordinator": "coordinator",
+      "reviewer": "reviewer",
+      "team": [
+        {
+          "name": "coordinator",
+          "role": "Two-file story coordinator",
+          "persona": "Plan design.md for researcher followed by story.md for builder, with an explicit dependency from the story task to the design task. Keep the story's 120–180 word limit and preserve both Pip invariants. Review is automatic; do not create approval or signal files.",
+          "skills": [
+            "dependency planning",
+            "story requirements"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "researcher",
+          "role": "Pip design author",
+          "persona": "Write the shared design.md describing Pip's appearance, nonverbal communication, sunlight energy, and rule that Pip never speaks. Make concise actionable design choices and send them to builder. The design should give the scene author a coherent reusable contract without inventing external research.",
+          "skills": [
+            "fictional design",
+            "shared conventions"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "builder",
+          "role": "Short-scene author",
+          "persona": "Read the accepted design.md before writing story.md. Produce a complete 120–180 word scene with a concrete problem and Pip's solution, following all established appearance and behavior rules. Show nonverbal action and sunlight-powered limitations rather than explaining an outline.",
+          "skills": [
+            "scene writing",
+            "continuity"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "reviewer",
+          "role": "Design and scene reviewer",
+          "persona": "Independently inspect actual design.md and story.md against their assigned criteria. Check the final scene's length, named robot, concrete problem and solution, and faithful use of both silent and sunlight-powered design rules. Distinguish the design artifact from the final narrative; request exact repairs for contradictions.",
+          "skills": [
+            "independent review",
+            "cross-file consistency"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "communication_links": [
+        {
+          "source": "coordinator",
+          "target": "researcher"
+        },
+        {
+          "source": "coordinator",
+          "target": "builder"
+        },
+        {
+          "source": "researcher",
+          "target": "builder"
+        },
+        {
+          "source": "builder",
+          "target": "researcher"
+        },
+        {
+          "source": "builder",
+          "target": "reviewer"
+        },
+        {
+          "source": "reviewer",
+          "target": "coordinator"
+        },
+        {
+          "source": "reviewer",
+          "target": "researcher"
+        },
+        {
+          "source": "reviewer",
+          "target": "builder"
+        }
+      ]
+    },
+    "positions": {
+      "coordinator": {
+        "x": 40,
+        "y": 190
+      },
+      "researcher": {
+        "x": 330,
+        "y": 70
+      },
+      "builder": {
+        "x": 620,
+        "y": 190
+      },
+      "reviewer": {
+        "x": 910,
+        "y": 190
+      }
     }
   },
   {
     "id": "board-game-kit",
     "title": "A tiny board game kit",
     "difficulty": "medium",
-    "description": "Write reusable rules, then test their consistency with a worked example.",
+    "description": "Four agents design concise rules and demonstrate three legal turns with checked edge cases. Offline.",
     "goal": "Design a simple two-player paper board game called Star Courier, playable with a pencil, a six-sided die, and a shared 5 by 5 grid. Produce rules.md with setup, turns, movement, scoring, and a clear end condition in no more than 500 words. Then produce example.md showing the first three turns using specific die rolls, positions, and scores that obey those rules, followed by three edge cases and their resolutions. Keep the rules simple and deterministic apart from the die. These two Markdown files are the required deliverables. No web research is needed.",
     "settings": {
       "max_tasks": 6,
       "max_steps": 12,
-      "discussion_rounds": 2
+      "discussion_rounds": 2,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "num_ctx": 32768,
+      "num_predict": 4096,
+      "context_chars": 24000,
+      "request_timeout": 180,
+      "web_enabled": false,
+      "coordinator": "coordinator",
+      "reviewer": "reviewer",
+      "team": [
+        {
+          "name": "coordinator",
+          "role": "Board-game coordinator",
+          "persona": "Plan rules.md for researcher then example.md for builder with an explicit dependency. Preserve the exact playing materials, two-player scope, 5 by 5 grid, three-turn example, and three edge cases. Keep the rules task under 500 words and avoid unnecessary artifacts.",
+          "skills": [
+            "dependency planning",
+            "game requirements"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "researcher",
+          "role": "Board-game rules designer",
+          "persona": "Design complete, simple Star Courier rules for two players, pencil, six-sided die, and a shared 5 by 5 grid. Write setup, turns, movement, scoring, and a definite end condition in rules.md under 500 words. Specify boundaries and tie handling so worked turns can be checked exactly.",
+          "skills": [
+            "game design",
+            "precise rules"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "builder",
+          "role": "Worked-turn example author",
+          "persona": "Read accepted rules.md. Write example.md with specific die rolls, legal grid positions, and correctly updated scores for the first three turns. Then explain exactly three relevant edge cases using the same rules. Do not silently change scoring, movement, turn order, or victory conditions.",
+          "skills": [
+            "worked examples",
+            "consistency"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "reviewer",
+          "role": "Rules and arithmetic reviewer",
+          "persona": "Independently inspect the complete rules and dependent example. Recompute each movement and score, check the first three turns, verify exactly three resolved edge cases, and confirm materials, grid dimensions, end condition, and rules word count. Reject contradictions or missing playable behavior with actionable corrections.",
+          "skills": [
+            "independent review",
+            "rules validation"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "communication_links": [
+        {
+          "source": "coordinator",
+          "target": "researcher"
+        },
+        {
+          "source": "coordinator",
+          "target": "builder"
+        },
+        {
+          "source": "researcher",
+          "target": "builder"
+        },
+        {
+          "source": "builder",
+          "target": "researcher"
+        },
+        {
+          "source": "builder",
+          "target": "reviewer"
+        },
+        {
+          "source": "reviewer",
+          "target": "coordinator"
+        },
+        {
+          "source": "reviewer",
+          "target": "researcher"
+        },
+        {
+          "source": "reviewer",
+          "target": "builder"
+        }
+      ]
+    },
+    "positions": {
+      "coordinator": {
+        "x": 40,
+        "y": 190
+      },
+      "researcher": {
+        "x": 330,
+        "y": 70
+      },
+      "builder": {
+        "x": 620,
+        "y": 190
+      },
+      "reviewer": {
+        "x": 910,
+        "y": 190
+      }
+    }
+  },
+  {
+    "id": "hire-a-garden-specialist",
+    "title": "Hire a garden specialist",
+    "difficulty": "easy",
+    "description": "Start with three agents, hire one helper for a small fictional garden plan, inspect its completed notes, then retire it. Offline.",
+    "goal": "Create garden_plan.md, a 220 to 320 word plan for a fictional two-pot balcony herb garden, and demonstrate hiring one specialist while producing it. The balcony receives five hours of light per day. For this invented exercise only, basil requires six hours, mint four, and chives three; treat these as simplified scenario assumptions, not real horticultural guidance. Two pots cost three credits each, one seed packet for each selected herb costs two credits, and shared soil costs two credits. The total budget is twelve credits. Include the headings Herb choices, Budget, and Weekly routine, choose only herbs that meet the supplied light constraint, and show arithmetic for all required supplies.\n\nUse the initial three-person team: coordinator, builder, and reviewer. The coordinator plans exactly one parent task owned by builder whose output is garden_plan.md; automatic review already exists. Before writing the plan, builder must call hire to recruit herb_specialist with role 'Fictional herb planning specialist', focused instructions to apply the supplied scenario assumptions, skills ['constraint reasoning', 'simple arithmetic'], and only list_files, read_file, write_file, and check_file tools. Give this specialist the assignment of producing 80 to 120 words of concrete herb recommendations and the itemized budget, output 'notes.md', and acceptance criteria covering allowed herbs, correct arithmetic, explicit fictional assumptions, and length. The hire tool returns the real delegated artifact path, expected under delegates/herb_specialist/notes.md; use the returned path rather than guessing an arbitrary location.\n\nUse monitor_agents with wait_seconds at most ten to observe actual completion and status notifications; if still running, continue monitoring instead of pretending it is done. Use instruct_agent only if clarification is needed. Once the specialist has completed successfully, read and check the actual notes artifact, integrate its recommendations into the complete garden_plan.md, and call fire on herb_specialist to retire the completed helper while retaining its notes. Do not fire while its assignment is unfinished, invent a delegated result, or replace hiring with a narrated claim. If a retry finds completed notes from this task, reuse the actual retained artifact rather than hiring duplicate helpers. Keep the parent plan concise, label all plant rules and prices as exercise assumptions, and provide a plausible simple weekly routine without unsupported real-world care claims. No web research is needed.",
+    "settings": {
+      "max_tasks": 3,
+      "max_steps": 24,
+      "discussion_rounds": 1,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "num_ctx": 32768,
+      "num_predict": 4096,
+      "context_chars": 24000,
+      "request_timeout": 180,
+      "web_enabled": false,
+      "coordinator": "coordinator",
+      "reviewer": "reviewer",
+      "team": [
+        {
+          "name": "coordinator",
+          "role": "Small delegation coordinator",
+          "persona": "Plan one garden_plan.md task for builder, preserving the fictional light, pot, herb, and twelve-credit constraints. Builder can hire one herb specialist inside this task; do not add the prospective helper to the initial team or create a separate parent-plan task for its sandboxed notes. Keep planning brief and independent review automatic.",
+          "skills": [
+            "small-task planning",
+            "delegation scope"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "builder",
+          "role": "Garden-plan author and hiring manager",
+          "persona": "Complete the compact fictional garden plan by hiring one herb_specialist for focused notes. Supply the exact invented constraints, narrow file tools, explicit assignment, notes.md output, and checkable acceptance criteria. Monitor its real status, read its completed artifact at the returned path, integrate the evidence into your own assigned output, then fire the completed helper. Keep artifacts and task completion honest; never simulate delegation in prose.",
+          "skills": [
+            "writing",
+            "hire",
+            "fire",
+            "constraint integration"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "hire",
+            "fire",
+            "monitor_agents",
+            "instruct_agent"
+          ]
+        },
+        {
+          "name": "reviewer",
+          "role": "Independent garden and delegation reviewer",
+          "persona": "Independently inspect the final garden plan against the supplied fictional constraints, headings, 220–320 word length, and twelve-credit arithmetic. Require real specialist completion and an actual retained delegated artifact rather than a narrated hiring claim. Check the parent's plan follows the specialist's verified advice and that retiring the helper preserves its work. Give precise corrections and remain read-only.",
+          "skills": [
+            "independent review",
+            "arithmetic checking",
+            "delegation evidence"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "communication_links": [
+        {
+          "source": "coordinator",
+          "target": "builder"
+        },
+        {
+          "source": "builder",
+          "target": "coordinator"
+        },
+        {
+          "source": "builder",
+          "target": "reviewer"
+        },
+        {
+          "source": "reviewer",
+          "target": "builder"
+        }
+      ],
+      "max_dynamic_agents": 1,
+      "max_hires": 3
+    },
+    "positions": {
+      "coordinator": {
+        "x": 50,
+        "y": 170
+      },
+      "builder": {
+        "x": 350,
+        "y": 170
+      },
+      "reviewer": {
+        "x": 650,
+        "y": 170
+      }
     }
   },
   {

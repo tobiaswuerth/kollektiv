@@ -18,19 +18,28 @@ import {
   Pencil,
   Search,
   ShieldCheck,
+  UsersRound,
   Wrench,
   Zap,
 } from "lucide-react";
 import { useRoom } from "../store";
-import { actor, nice, tones } from "../selectors";
+import {
+  activeTeam,
+  actor,
+  nice,
+  specialistMode,
+  specialists,
+  tones,
+} from "../selectors";
 import { useClock } from "../hooks/useRuntime";
-import type { Agent, RuntimeEvent } from "../types";
+import type { Agent, RuntimeEvent, Specialist } from "../types";
 import { Badge } from "./ui";
 import { FlowEdge } from "../graph/FlowEdge";
 import { GraphViewport } from "../graph/GraphViewport";
 import { useGraphLayouts } from "../graph/layoutStore";
-import { layoutTeam, linkId, workflowLinks } from "../graph/model";
+import { layoutRuntimeTeam, linkId, workflowLinks } from "../graph/model";
 import { useNodeMeasurements } from "../graph/useNodeMeasurements";
+import "../delegation.css";
 
 type Person = Node<
   {
@@ -43,6 +52,8 @@ type Person = Node<
     calls: number;
     tool?: RuntimeEvent;
     pulse?: RuntimeEvent;
+    specialist?: Specialist;
+    children: number;
   },
   "person"
 >;
@@ -61,6 +72,8 @@ const PersonCard = memo(({ data, selected }: NodeProps<Person>) => {
       style={{ "--tone": data.tone } as React.CSSProperties}
       data-agent={data.agent.name}
       data-mode={data.mode}
+      data-parent={data.specialist?.parent}
+      data-level={data.specialist?.level || 1}
     >
       <Handle type="target" position={Position.Top} id="in" />
       <Handle type="source" position={Position.Bottom} id="out" />
@@ -80,9 +93,24 @@ const PersonCard = memo(({ data, selected }: NodeProps<Person>) => {
         <Zap size={12} />
         {data.activity}
       </div>
+      {(data.specialist || data.children > 0) && (
+        <div className="person-hierarchy">
+          <GitBranch size={11} />
+          <span>
+            {data.specialist
+              ? `Level ${data.specialist.level} · ${data.specialist.parent}`
+              : `${data.children} specialist${data.children === 1 ? "" : "s"}`}
+          </span>
+          {data.specialist && data.children > 0 && (
+            <small>{data.children} reports</small>
+          )}
+        </div>
+      )}
       <footer>
         <span>
-          {data.completed}/{data.tasks} tasks
+          {data.specialist
+            ? nice(data.specialist.status)
+            : `${data.completed}/${data.tasks} tasks`}
         </span>
         <span>{data.calls} calls</span>
       </footer>
@@ -116,7 +144,9 @@ function GraphContent() {
   const { snapshot, defaults, events, pulses, selection, select, runId } =
     useRoom();
   const config = snapshot?.manifest.settings || defaults;
-  const team = config?.team || [],
+  const jobs = specialists(snapshot);
+  const jobByName = new Map(jobs.map((agent) => [agent.name, agent]));
+  const team = activeTeam(snapshot, config?.team || []),
     tasks = Object.values(snapshot?.state.tasks || {}),
     now = useClock();
   const key = `${runId || "defaults"}:${team.map((a) => a.name).join("|")}`;
@@ -131,10 +161,25 @@ function GraphContent() {
     config?.coordinator,
     config?.reviewer,
     config?.communication_links,
+    jobs
+      .filter((agent) => agent.status !== "retired")
+      .map((agent) => [agent.name, agent.parent]),
+    snapshot?.manifest.positions,
+    positions,
   ]);
-  const layout = useMemo(() => (config ? layoutTeam(config) : {}), [layoutKey]);
+  const layout = useMemo(
+    () =>
+      config
+        ? layoutRuntimeTeam(config, jobs, {
+            ...snapshot?.manifest.positions,
+            ...positions,
+          })
+        : {},
+    [layoutKey],
+  );
   const activePulses = pulses.filter((p) => p.start <= now && p.end >= now);
   const nodes: Person[] = team.map((agent, index) => {
+    const specialist = jobByName.get(agent.name);
     const recent = activePulses
       .filter((p) => actor(p.event) === agent.name)
       .at(-1)?.event;
@@ -151,19 +196,21 @@ function GraphContent() {
           (e.kind === "tool_result" || !!e.tool_calls?.length),
       )
       .at(-1);
-    const mode = active
-      ? /review/.test(active.node)
-        ? "reviewing"
-        : "working"
-      : snapshot?.running && snapshot.control?.mode === "paused"
-        ? "paused"
-        : snapshot?.running && recent
-          ? /review/.test(recent.purpose || recent.node || "")
-            ? "reviewing"
-            : recent.status === "error" || recent.kind === "node_failed"
-              ? "failed"
-              : "working"
-          : "idle";
+    const mode = specialist
+      ? specialistMode(specialist)
+      : active
+        ? /review/.test(active.node)
+          ? "reviewing"
+          : "working"
+        : snapshot?.running && snapshot.control?.mode === "paused"
+          ? "paused"
+          : snapshot?.running && recent
+            ? /review/.test(recent.purpose || recent.node || "")
+              ? "reviewing"
+              : recent.status === "error" || recent.kind === "node_failed"
+                ? "failed"
+                : "working"
+            : "idle";
     const assigned = tasks.filter((t) => t.owner === agent.name);
     const latest =
       recent ||
@@ -179,11 +226,18 @@ function GraphContent() {
             ].includes(e.kind),
         )
         .at(-1);
-    const activity = latest
-      ? latest.tool || latest.purpose || nice(latest.node) || nice(latest.kind)
-      : snapshot?.state.status === "completed"
-        ? "Mission complete"
-        : "Ready to collaborate";
+    const activity = specialist
+      ? specialist.current_node
+        ? nice(specialist.current_node)
+        : specialist.last_tool || specialist.summary || nice(specialist.status)
+      : latest
+        ? latest.tool ||
+          latest.purpose ||
+          nice(latest.node) ||
+          nice(latest.kind)
+        : snapshot?.state.status === "completed"
+          ? "Mission complete"
+          : "Ready to collaborate";
     return {
       id: agent.name,
       type: "person",
@@ -204,6 +258,10 @@ function GraphContent() {
         ).length,
         tool,
         pulse: recent,
+        specialist,
+        children: jobs.filter(
+          (child) => child.parent === agent.name && child.status !== "retired",
+        ).length,
       },
     };
   });
@@ -227,6 +285,9 @@ function GraphContent() {
     (config.communication_links ?? workflowLinks(config)).forEach(
       ({ source, target }) => add(source, target),
     );
+  jobs
+    .filter((agent) => agent.status !== "retired")
+    .forEach((agent) => add(agent.parent, agent.name));
   events
     .filter((e) => e.kind === "message")
     .forEach((e) => {
@@ -264,7 +325,12 @@ function GraphContent() {
       sourceHandle: "out",
       targetHandle: "in",
       markerEnd: { type: MarkerType.ArrowClosed, color: tone },
-      data: { count: link.count, pulses: live, tone },
+      data: {
+        count: link.count,
+        pulses: live,
+        tone,
+        hierarchy: jobByName.get(link.target)?.parent === link.source,
+      },
     };
   });
   team.forEach((a, i) => {
@@ -290,6 +356,7 @@ function GraphContent() {
           count: 0,
           pulses: live,
           tone: tones[i % tones.length],
+          hierarchy: false,
           label:
             live.at(-1)!.event.tool || live.at(-1)!.event.tool_calls?.[0]?.name,
         },
@@ -319,7 +386,7 @@ function GraphContent() {
         onEdgeClick={(_, edge) => select({ type: "channel", id: edge.id })}
         nodesConnectable={false}
         deleteKeyCode={null}
-        minZoom={0.3}
+        minZoom={0.12}
         maxZoom={1.8}
         colorMode="dark"
         proOptions={{ hideAttribution: true }}
@@ -337,7 +404,8 @@ function GraphContent() {
 }
 
 export function AgentGraph({ onEdit }: { onEdit?: () => void }) {
-  const { snapshot, defaults, events, runId } = useRoom();
+  const { snapshot, defaults, events, runId, select } = useRoom();
+  const jobs = specialists(snapshot);
   const teamKey =
     (snapshot?.manifest.settings || defaults)?.team
       .map((agent) => agent.name)
@@ -352,11 +420,21 @@ export function AgentGraph({ onEdit }: { onEdit?: () => void }) {
             <GitBranch size={16} />
             Agent graph{" "}
             <span className="count">
-              {(snapshot?.manifest.settings || defaults)?.team.length || 0}
+              {activeTeam(snapshot, defaults?.team || []).length}
             </span>
           </h2>
         </div>
         <div className="graph-phase">
+          {jobs.length > 0 && (
+            <button
+              className="button"
+              aria-label="Inspect specialist history"
+              onClick={() => select({ type: "delegation", id: "all" })}
+            >
+              <UsersRound size={13} />
+              {jobs.length} specialists
+            </button>
+          )}
           {onEdit && (
             <button className="button" onClick={onEdit} disabled={!defaults}>
               <Pencil size={13} />
@@ -403,6 +481,11 @@ export function AgentGraph({ onEdit }: { onEdit?: () => void }) {
             Paused
           </span>
           <span>→ Information flow</span>
+          {jobs.length > 0 && (
+            <span>
+              <GitBranch size={11} /> Specialist reports
+            </span>
+          )}
         </div>
       </div>
       <div className="graph-event">

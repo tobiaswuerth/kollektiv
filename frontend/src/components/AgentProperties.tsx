@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { Trash2 } from "lucide-react";
 import type { Agent, TeamConfiguration } from "../types";
+import { setToolPermission } from "../graph/editorModel";
 
 export function AgentProperties({
   agent,
@@ -114,9 +115,11 @@ export function AgentProperties({
               checked={agent.tools.includes(tool)}
               onChange={(event) =>
                 update({
-                  tools: event.target.checked
-                    ? [...agent.tools, tool]
-                    : agent.tools.filter((name) => name !== tool),
+                  tools: setToolPermission(
+                    agent.tools,
+                    tool,
+                    event.target.checked,
+                  ),
                 })
               }
             />
@@ -128,6 +131,12 @@ export function AgentProperties({
         These switches control which tools the agent receives. Web tools
         additionally require web access for the collective.
       </p>
+      {available.includes("hire") && (
+        <p className="editor-permission-note">
+          Hiring also enables monitoring and instructions. Turning either off
+          disables hiring.
+        </p>
+      )}
     </section>
   );
 }

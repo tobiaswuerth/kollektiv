@@ -14,7 +14,21 @@ ToolName = Literal[
     "share_note",
     "web_search",
     "web_browse",
+    "hire",
+    "fire",
+    "monitor_agents",
+    "instruct_agent",
 ]
+
+
+def validate_hiring_tools(tools: list[str]) -> None:
+    if "hire" in tools:
+        missing = {"monitor_agents", "instruct_agent"} - set(tools)
+        if missing:
+            raise ValueError(
+                "The hire skill requires explicitly granting monitor_agents and instruct_agent; "
+                f"missing: {', '.join(sorted(missing))}"
+            )
 
 
 class Agent(BaseModel):
@@ -35,6 +49,11 @@ class Agent(BaseModel):
         ]
     )
     model: str | None = None
+
+    @model_validator(mode="after")
+    def validate_supervision(self) -> "Agent":
+        validate_hiring_tools(self.tools)
+        return self
 
 
 class CommunicationLink(BaseModel):
@@ -104,6 +123,8 @@ class Settings(BaseModel):
     max_concurrency: int = Field(default=1, ge=1, le=16)
     context_chars: int = Field(default=60000, ge=4000)
     max_file_bytes: int = Field(default=2_000_000, ge=1024)
+    max_dynamic_agents: int = Field(default=8, ge=1, le=32)
+    max_hires: int = Field(default=48, ge=1, le=200)
     web_enabled: bool = False
     team: list[Agent] = Field(default_factory=default_team, min_length=3)
     coordinator: str = "coordinator"

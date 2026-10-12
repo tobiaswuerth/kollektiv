@@ -2,15 +2,18 @@
 
 import json
 from collections.abc import Callable
+from contextlib import nullcontext
 from datetime import UTC, datetime
+from typing import Annotated
 from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from langchain_core.tools import BaseTool, tool
+from langchain_core.tools import BaseTool, InjectedToolCallId, tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Settings
+from .delegation import DelegationManager, HireRequest
 from .workspace import Workspace, relative_path
 
 
@@ -33,6 +36,10 @@ class AssembleContent(BaseModel):
         max_length=50000,
         description="Optional title or front matter placed before the dependency content",
     )
+
+
+class HireContent(HireRequest):
+    tool_call_id: Annotated[str, InjectedToolCallId]
 
 
 def record(sender: str, content: str, **fields) -> dict:
@@ -58,6 +65,9 @@ class Toolkit:
         output: str | None,
         emit: Callable[..., dict],
         input_files: list[str] | None = None,
+        delegation: DelegationManager | None = None,
+        task_id: str = "",
+        write_key: str | None = None,
     ):
         self.settings = settings
         self.workspace = workspace
@@ -67,6 +77,18 @@ class Toolkit:
         self.input_files = tuple(relative_path(path) for path in (input_files or []))
         self.messages: dict[str, dict] = {}
         self.notes: dict[str, dict] = {}
+        self.delegation = delegation
+        self.task_id = task_id
+        self.write_key = write_key
+
+    def write_guard(self):
+        return self.delegation.write_guard(self.agent) if self.delegation else nullcontext()
+
+    def write_artifact(self, content: str) -> tuple[dict, bool]:
+        if self.delegation and self.write_key and self.delegation.actor(self.agent)[1] > 1:
+            return self.delegation.guarded_write(self.agent, self.output, content, self.write_key)
+        with self.write_guard():
+            return self.workspace.write(self.output, content), False
 
     def build(self) -> list[BaseTool]:
         @tool
@@ -87,8 +109,9 @@ class Toolkit:
             """Write the COMPLETE text of your assigned artifact. Its path is set by the task."""
             if not self.output:
                 raise ValueError("No output is assigned to this agent")
-            result = self.workspace.write(self.output, content)
-            self.emit("artifact_written", agent=self.agent, **result)
+            result, replayed = self.write_artifact(content)
+            if not replayed:
+                self.emit("artifact_written", agent=self.agent, **result)
             return json.dumps(result)
 
         @tool(args_schema=AssembleContent)
@@ -123,8 +146,9 @@ class Toolkit:
                     raise ValueError(f"File exceeds {self.workspace.max_bytes} bytes")
                 parts.append(content)
             content = prefix + separator.join(parts)
-            result = self.workspace.write(self.output, content)
-            self.emit("artifact_written", agent=self.agent, sources=sources, **result)
+            result, replayed = self.write_artifact(content)
+            if not replayed:
+                self.emit("artifact_written", agent=self.agent, sources=sources, **result)
             return json.dumps(result)
 
         @tool
@@ -135,6 +159,19 @@ class Toolkit:
         @tool
         def send_message(recipient: str, content: str) -> str:
             """Send actionable information to an exact teammate name, or 'all' for a broadcast."""
+            if self.delegation:
+                _, level = self.delegation.actor(self.agent)
+                dynamic_names = self.delegation.snapshot()["agents"]
+                if level > 1 or recipient in dynamic_names:
+                    recipients = (
+                        self.delegation.allowed_recipients(self.agent)
+                        if recipient == "all"
+                        else [recipient]
+                    )
+                    for target in recipients:
+                        message = self.delegation.send_message(self.agent, target, content)
+                        self.messages[message["id"]] = message
+                    return json.dumps({"delivered": True, "recipients": recipients})
             if recipient not in [a.name for a in self.settings.team] + ["all"]:
                 raise ValueError("Unknown teammate; use an exact name from the team roster")
             if not content.strip() or len(content) > 6000:
@@ -155,6 +192,64 @@ class Toolkit:
             self.notes[note["id"]] = note
             self.emit("note", **note)
             return "Saved to shared memory."
+
+        @tool(args_schema=HireContent)
+        def hire(**arguments) -> str:
+            """Hire one real background subagent with exactly specified persona and assignment.
+
+            Provide name, role, instructions, skills, tools, assignment and acceptance_criteria.
+            Writers also need output, confined to delegates/name/output; read-only children
+            omit output and return reviewed text findings. The child
+            runs independently; monitor_agents observes it and status changes arrive
+            automatically in your inbox. Level-3 children cannot receive hire or fire.
+            """
+            if not self.delegation:
+                raise ValueError("Dynamic skills require an active collective delegation manager")
+            arguments = dict(arguments)
+            call_id = arguments.pop("tool_call_id")
+            job = self.delegation.hire(
+                self.agent, HireRequest.model_validate(arguments), call_id, self.task_id
+            )
+            return json.dumps(
+                {key: job[key] for key in ("id", "name", "parent", "level", "status", "output")}
+            )
+
+        @tool
+        def fire(child: str, reason: str = "Work finished") -> str:
+            """Retire your direct child and its descendants; preserve their files and history.
+
+            Cancels ongoing work at the next boundary and prevents further artifact
+            writes immediately. Use the exact child name or ID from hire/monitor_agents.
+            """
+            if not self.delegation:
+                raise ValueError("Dynamic skills require a collective delegation manager")
+            job = self.delegation.fire(self.agent, child, reason)
+            return json.dumps(
+                {"name": job["name"], "status": job["status"], "output": job["output"]}
+            )
+
+        @tool
+        def monitor_agents(wait_seconds: float = 0, since: int | None = None) -> str:
+            """Inspect your children, live node/tool progress, results and automatic notifications.
+
+            Optionally wait up to ten seconds for a change. Pass the previous revision
+            as since to avoid missing a transition between polls. Actual artifacts are
+            readable through read_file using the returned scoped output paths.
+            """
+            if not self.delegation:
+                raise ValueError("Dynamic skills require a collective delegation manager")
+            return json.dumps(self.delegation.monitor(self.agent, wait_seconds, since))
+
+        @tool
+        def instruct_agent(child: str, content: str) -> str:
+            """Intervene in your own direct child's work with new instructions.
+
+            Instructions are durable and automatically enter its next model prompt.
+            They preserve the original assignment and artifact ownership.
+            """
+            if not self.delegation:
+                raise ValueError("Dynamic skills require a collective delegation manager")
+            return json.dumps(self.delegation.instruct(self.agent, child, content))
 
         @tool
         def web_search(query: str) -> str:
@@ -196,8 +291,17 @@ class Toolkit:
             share_note,
             web_search,
             web_browse,
+            hire,
+            fire,
+            monitor_agents,
+            instruct_agent,
         ]
         allowed = self.settings.agent(self.agent).tools
+        if self.delegation:
+            actor, level = self.delegation.actor(self.agent)
+            allowed = actor.tools
+        else:
+            level = 1
         return [
             t
             for t in candidates
@@ -205,4 +309,9 @@ class Toolkit:
             and (self.settings.web_enabled or not t.name.startswith("web_"))
             and (self.output is not None or t.name != "write_file")
             and (t.name != "assemble_files" or (self.output is not None and self.input_files))
+            and (t.name not in ("hire", "fire") or level < 3)
+            and (
+                self.delegation is not None
+                or t.name not in ("hire", "fire", "monitor_agents", "instruct_agent")
+            )
         ]

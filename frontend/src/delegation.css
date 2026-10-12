@@ -1,0 +1,94 @@
+.person-hierarchy {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  margin: 0 0 8px;
+  color: #9aaecf;
+  font-size: 9px;
+  min-width: 0;
+}
+.person-hierarchy > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.person-hierarchy > svg {
+  color: var(--tone);
+  flex-shrink: 0;
+}
+.person-hierarchy > small {
+  margin-left: auto;
+  white-space: nowrap;
+}
+.person-card[data-level="2"],
+.person-card[data-level="3"] {
+  border-left: 3px solid color-mix(in srgb, var(--tone) 65%, transparent);
+}
+.person-card[data-level="3"] {
+  border-left-style: double;
+}
+.person-heading strong {
+  display: block;
+  max-width: 140px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.node-dot.pending {
+  background: var(--amber);
+}
+.node-dot.completed {
+  background: #8ed4c2;
+}
+.node-dot.interrupted {
+  background: #ee7999;
+}
+.badge.retired {
+  color: #91a0bd;
+  background: #20283a;
+}
+.inspector .button.danger {
+  color: #f2a2b3;
+  border-color: #65364c;
+  background: #352334;
+}
+.inspector .button.danger:hover {
+  border-color: #c97995;
+}
+.specialist-assignment > h4,
+.inspector-body section > h4:has(svg) {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.specialist-assignment .inspect-row > span > strong {
+  display: block;
+  margin-top: 3px;
+  color: var(--text);
+}
+.specialist-assignment dd {
+  overflow-wrap: anywhere;
+}
+.specialist-assignment details {
+  margin-top: 10px;
+  font-size: 11px;
+}
+.specialist-assignment summary {
+  cursor: pointer;
+  color: var(--cyan);
+}
+@media (max-width: 700px) {
+  .graph-phase button[aria-label="Inspect specialist history"] {
+    font-size: 0;
+    padding: 6px;
+  }
+  .graph-phase button[aria-label="Inspect specialist history"] > svg {
+    width: 14px;
+    height: 14px;
+  }
+  .graph-legend {
+    flex-wrap: wrap;
+    row-gap: 5px;
+    max-width: calc(100% - 56px);
+  }
+}

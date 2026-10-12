@@ -172,6 +172,14 @@ export function configurationErrors(
       );
     if (tools.length && agent.tools.some((tool) => !tools.includes(tool)))
       errors.push(`${agent.name} has an unavailable tool.`);
+    if (
+      agent.tools.includes("hire") &&
+      (!agent.tools.includes("monitor_agents") ||
+        !agent.tools.includes("instruct_agent"))
+    )
+      errors.push(
+        `${agent.name}: hire requires monitor_agents and instruct_agent.`,
+      );
   });
   if (!names.includes(coordinator) || !names.includes(reviewer))
     errors.push("Choose a coordinator and reviewer from the team.");
@@ -197,6 +205,26 @@ export function configurationErrors(
       "Communication paths must connect two different agents in the team.",
     );
   return errors;
+}
+
+export function setToolPermission(
+  tools: string[],
+  tool: string,
+  enabled: boolean,
+) {
+  const selected = new Set(tools);
+  if (enabled) {
+    selected.add(tool);
+    if (tool === "hire") {
+      selected.add("monitor_agents");
+      selected.add("instruct_agent");
+    }
+  } else {
+    selected.delete(tool);
+    if (tool === "monitor_agents" || tool === "instruct_agent")
+      selected.delete("hire");
+  }
+  return [...selected];
 }
 
 export function parseConfiguration(content: string): TeamConfiguration {

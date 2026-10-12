@@ -96,6 +96,7 @@ export const useRoom = create<Room>((set, get) => ({
               running: data.running,
               control: data.control,
               error: data.error || room.snapshot.error,
+              delegation: data.delegation ?? room.snapshot.delegation,
             }
           : null;
     set({

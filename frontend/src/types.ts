@@ -6,6 +6,40 @@ export type Agent = {
   tools: string[];
   model?: string;
 };
+export type SpecialistStatus =
+  | "pending"
+  | "running"
+  | "awaiting_children"
+  | "reviewing"
+  | "completed"
+  | "failed"
+  | "interrupted"
+  | "retired";
+export type Specialist = Agent & {
+  id: string;
+  parent: string;
+  parent_id: string | null;
+  level: 2 | 3;
+  status: SpecialistStatus;
+  assignment: string;
+  output?: string | null;
+  input_files: string[];
+  acceptance_criteria: string[];
+  task_id?: string;
+  parent_task_id?: string;
+  current_node?: string;
+  last_tool?: string;
+  summary?: string;
+  error?: string;
+  artifact?: { words: number; bytes: number; sha256: string };
+  created_at: string;
+  updated_at: string;
+  history?: RuntimeEvent[];
+};
+export type Delegation = {
+  agents: Record<string, Specialist>;
+  max_depth: number;
+};
 export type CommunicationLink = { source: string; target: string };
 export type GraphPosition = { x: number; y: number };
 export type Settings = {
@@ -107,13 +141,21 @@ export type Snapshot = {
   events: RuntimeEvent[];
   cursor: number;
   artifacts: { path: string; bytes: number }[];
+  delegation?: Delegation;
 };
 export type EventBatch = Pick<
   Snapshot,
-  "events" | "cursor" | "running" | "control" | "error"
+  "events" | "cursor" | "running" | "control" | "error" | "delegation"
 >;
 export type Selection = {
-  type: "agent" | "task" | "event" | "artifact" | "config" | "channel";
+  type:
+    | "agent"
+    | "task"
+    | "event"
+    | "artifact"
+    | "config"
+    | "channel"
+    | "delegation";
   id: string;
 } | null;
 export type Pulse = { event: RuntimeEvent; start: number; end: number };

@@ -6,14 +6,25 @@ import {
   Download,
   Eye,
   MessageSquare,
+  GitBranch,
   RotateCcw,
   Save,
   Wrench,
+  UserRoundX,
   X,
 } from "lucide-react";
 import { useRoom } from "../store";
 import { api } from "../api";
-import { canAdmin, nice, records, time } from "../selectors";
+import {
+  agentHistory,
+  canAdmin,
+  canGuideSpecialist,
+  nice,
+  records,
+  specialistMode,
+  specialists,
+  time,
+} from "../selectors";
 import { Badge, Empty, JsonTree, download } from "./ui";
 export function Inspector({
   admin,
@@ -50,8 +61,28 @@ export function Inspector({
     };
   }, [selection?.type, selection?.id, snapshot?.manifest.run_id]);
   const task = snapshot?.state.tasks?.[selection?.id || ""];
-  const agent = config?.team.find((a) => a.name === selection?.id);
-  const event = events.find((e) => e.id === selection?.id);
+  const jobs = specialists(snapshot);
+  const specialist = jobs.find((agent) => agent.name === selection?.id);
+  const agent =
+    specialist || config?.team.find((a) => a.name === selection?.id);
+  const children = jobs.filter((child) => child.parent === agent?.name);
+  const history = specialist
+    ? agentHistory(specialist, events)
+    : events.filter(
+        (event) => event.agent === agent?.name || event.sender === agent?.name,
+      );
+  const editableArtifact =
+    allowed &&
+    Object.values(snapshot?.state.tasks || {}).some(
+      (task) => task.output === selection?.id,
+    );
+  const specialistArtifact = jobs.some((job) => job.output === selection?.id);
+  const event =
+    events.find((e) => e.id === selection?.id) ||
+    jobs
+      .flatMap((job) => job.history || [])
+      .find((e) => e.id === selection?.id);
+  useEffect(() => setError(""), [selection?.id, selection?.type]);
   const save = async () => {
     setSaving(true);
     setError("");
@@ -62,6 +93,18 @@ export function Inspector({
       });
     } catch (e) {
       setError(String(e));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const fire = async () => {
+    if (!specialist) return;
+    setSaving(true);
+    setError("");
+    try {
+      await intervene("fire_agent", { agent_id: specialist.id });
+    } catch (error) {
+      setError(String(error));
     } finally {
       setSaving(false);
     }
@@ -121,23 +164,28 @@ export function Inspector({
               <div>
                 <h3>{agent.name}</h3>
                 <p>{agent.role}</p>
+                {specialist && (
+                  <Badge status={specialistMode(specialist)}>
+                    {nice(specialist.status)}
+                  </Badge>
+                )}
               </div>
             </div>
             <div className="metric-grid">
               <span>
                 <strong>
-                  {
-                    Object.values(snapshot?.state.tasks || {}).filter(
-                      (t) => t.owner === agent.name,
-                    ).length
-                  }
+                  {specialist
+                    ? 1
+                    : Object.values(snapshot?.state.tasks || {}).filter(
+                        (t) => t.owner === agent.name,
+                      ).length}
                 </strong>
-                Assigned tasks
+                {specialist ? "Assignment" : "Assigned tasks"}
               </span>
               <span>
                 <strong>
                   {
-                    events.filter(
+                    history.filter(
                       (e) => e.kind === "model" && e.agent === agent.name,
                     ).length
                   }
@@ -145,14 +193,140 @@ export function Inspector({
                 Observed calls
               </span>
             </div>
-            <button
-              className="button primary"
-              disabled={!allowed}
-              onClick={() => admin("inject_message", { recipient: agent.name })}
-            >
-              <MessageSquare size={14} />
-              Send instruction
-            </button>
+            <div className="action-row">
+              <button
+                className="button primary"
+                disabled={
+                  specialist ? !canGuideSpecialist(specialist) : !allowed
+                }
+                onClick={() =>
+                  specialist
+                    ? admin("instruct_agent", {
+                        agent_id: specialist.id,
+                        name: specialist.name,
+                      })
+                    : admin("inject_message", { recipient: agent.name })
+                }
+              >
+                <MessageSquare size={14} />
+                Send instruction
+              </button>
+              {specialist && specialist.status !== "retired" && (
+                <button
+                  className="button danger"
+                  disabled={saving}
+                  aria-label="Fire specialist"
+                  onClick={() => void fire()}
+                >
+                  <UserRoundX size={14} />
+                  Fire
+                </button>
+              )}
+            </div>
+            {specialist && (
+              <>
+                <section className="specialist-assignment">
+                  <h4>
+                    <GitBranch size={13} /> LEVEL {specialist.level} OF{" "}
+                    {snapshot?.delegation?.max_depth || 3}
+                  </h4>
+                  <button
+                    className="inspect-row"
+                    onClick={() =>
+                      select({ type: "agent", id: specialist.parent })
+                    }
+                  >
+                    <span>
+                      Reports to<strong>{specialist.parent}</strong>
+                    </span>
+                    <ArrowUpRight size={12} />
+                  </button>
+                  <p>{specialist.assignment}</p>
+                  <dl>
+                    <dt>Current activity</dt>
+                    <dd>
+                      {nice(specialist.current_node) || nice(specialist.status)}
+                    </dd>
+                    {specialist.last_tool && (
+                      <>
+                        <dt>Last tool</dt>
+                        <dd>{specialist.last_tool}</dd>
+                      </>
+                    )}
+                    <dt>{specialist.output ? "Output" : "Deliverable"}</dt>
+                    <dd>{specialist.output || "Report to parent"}</dd>
+                  </dl>
+                  {specialist.summary && <p>{specialist.summary}</p>}
+                  {specialist.error && (
+                    <p className="error-text">{specialist.error}</p>
+                  )}
+                  {specialist.acceptance_criteria?.length > 0 && (
+                    <details>
+                      <summary>Assignment criteria</summary>
+                      <ul>
+                        {specialist.acceptance_criteria.map(
+                          (criterion, index) => (
+                            <li key={index}>{criterion}</li>
+                          ),
+                        )}
+                      </ul>
+                    </details>
+                  )}
+                  {specialist.output &&
+                    (specialist.artifact ||
+                      snapshot?.artifacts.some(
+                        (file) => file.path === specialist.output,
+                      )) && (
+                      <button
+                        className="button wide"
+                        onClick={() =>
+                          select({ type: "artifact", id: specialist.output! })
+                        }
+                      >
+                        <ArrowUpRight size={13} /> Open specialist artifact
+                      </button>
+                    )}
+                </section>
+                <p className="help">
+                  {specialist.status === "retired"
+                    ? "This specialist is retired. Their work and history remain available."
+                    : "Instructions arrive at the next work step. Firing also retires their specialists and preserves completed artifacts."}
+                </p>
+                {error && (
+                  <p role="alert" className="error-text">
+                    {error}
+                  </p>
+                )}
+              </>
+            )}
+            {children.length > 0 && (
+              <section>
+                <h4>
+                  <GitBranch size={13} /> SPECIALISTS
+                </h4>
+                <p className="help">
+                  Reports and status changes return to this agent automatically.
+                </p>
+                {children.map((child) => (
+                  <button
+                    className="inspect-row"
+                    data-specialist={child.name}
+                    key={child.id}
+                    onClick={() => select({ type: "agent", id: child.name })}
+                  >
+                    <span>
+                      {child.name}
+                      <small>
+                        Level {child.level} · {child.role}
+                      </small>
+                    </span>
+                    <Badge status={specialistMode(child)}>
+                      {nice(child.status)}
+                    </Badge>
+                  </button>
+                ))}
+              </section>
+            )}
             <section>
               <h4>PERSONA</h4>
               <p>{agent.persona}</p>
@@ -173,28 +347,27 @@ export function Inspector({
                 ))}
               </div>
             </section>
-            <section>
-              <h4>ASSIGNED WORK</h4>
-              {Object.values(snapshot?.state.tasks || {})
-                .filter((t) => t.owner === agent.name)
-                .map((t) => (
-                  <button
-                    className="inspect-row"
-                    key={t.id}
-                    onClick={() => select({ type: "task", id: t.id })}
-                  >
-                    {t.title}
-                    <Badge status={t.status} />
-                  </button>
-                ))}
-            </section>
+            {!specialist && (
+              <section>
+                <h4>ASSIGNED WORK</h4>
+                {Object.values(snapshot?.state.tasks || {})
+                  .filter((t) => t.owner === agent.name)
+                  .map((t) => (
+                    <button
+                      className="inspect-row"
+                      key={t.id}
+                      onClick={() => select({ type: "task", id: t.id })}
+                    >
+                      {t.title}
+                      <Badge status={t.status} />
+                    </button>
+                  ))}
+              </section>
+            )}
             <section>
               <h4>RECENT ACTIVITY</h4>
-              {events
-                .filter(
-                  (e) => e.agent === agent.name || e.sender === agent.name,
-                )
-                .slice(-6)
+              {history
+                .slice(specialist ? -30 : -6)
                 .reverse()
                 .map((e) => (
                   <button
@@ -212,6 +385,38 @@ export function Inspector({
                   </button>
                 ))}
             </section>
+          </>
+        )}
+        {selection?.type === "delegation" && (
+          <>
+            <h3>Specialist history</h3>
+            <p className="subtitle">
+              {jobs.filter((job) => job.status !== "retired").length} current ·{" "}
+              {jobs.filter((job) => job.status === "retired").length} retired
+            </p>
+            <p>
+              Hired specialists report to their parent. Select one to inspect
+              its assignment, tools, artifact and work history.
+            </p>
+            {jobs
+              .slice()
+              .reverse()
+              .map((job) => (
+                <button
+                  className="inspect-row"
+                  data-specialist={job.name}
+                  key={job.id}
+                  onClick={() => select({ type: "agent", id: job.name })}
+                >
+                  <span>
+                    {job.name}
+                    <small>
+                      Level {job.level} · {job.parent}
+                    </small>
+                  </span>
+                  <Badge status={specialistMode(job)}>{nice(job.status)}</Badge>
+                </button>
+              ))}
           </>
         )}
         {selection?.type === "task" && task && (
@@ -320,19 +525,21 @@ export function Inspector({
                   className="artifact-editor"
                   aria-label="Artifact contents"
                   value={artifact}
-                  readOnly={!allowed}
+                  readOnly={!editableArtifact}
                   onChange={(e) => setArtifact(e.target.value)}
                   spellCheck={false}
                 />
                 <div className="action-row">
-                  <button
-                    className="button primary"
-                    disabled={!allowed || saving}
-                    onClick={() => void save()}
-                  >
-                    <Save size={13} />
-                    Save & reopen
-                  </button>
+                  {!specialistArtifact && (
+                    <button
+                      className="button primary"
+                      disabled={!editableArtifact || saving}
+                      onClick={() => void save()}
+                    >
+                      <Save size={13} />
+                      Save & reopen
+                    </button>
+                  )}
                   <button
                     className="button"
                     onClick={() =>
@@ -344,7 +551,9 @@ export function Inspector({
                   </button>
                 </div>
                 <p className="help">
-                  Saving reopens this task and its dependent work for review.
+                  {specialistArtifact
+                    ? "Specialist artifacts are preserved here. Send their owner an instruction to revise the work."
+                    : "Saving reopens this task and its dependent work for review."}
                 </p>
               </>
             )}
@@ -394,12 +603,20 @@ export function Inspector({
           })()}
       </div>
       <footer>
-        <span className={`runtime-dot ${allowed ? "" : "muted"}`} />
-        {allowed
-          ? "Interventions available"
-          : snapshot?.running
-            ? "Pause at a boundary to intervene"
-            : "Live checkpoint inspection"}
+        <span
+          className={`runtime-dot ${allowed || (specialist && canGuideSpecialist(specialist)) ? "" : "muted"}`}
+        />
+        {specialist && canGuideSpecialist(specialist)
+          ? "Specialist guidance available live"
+          : specialist?.status === "retired"
+            ? "Specialist history preserved"
+            : specialistArtifact
+              ? "Specialist artifact inspection"
+              : allowed
+                ? "Interventions available"
+                : snapshot?.running
+                  ? "Pause at a boundary to intervene"
+                  : "Live checkpoint inspection"}
       </footer>
     </aside>
   );

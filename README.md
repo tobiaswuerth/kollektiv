@@ -25,8 +25,10 @@ uv run kollektiv serve --open
 If Ollama is not already running, start `ollama serve` in a separate terminal.
 No cloud credentials are required. Open `http://127.0.0.1:8765` for the agent graph control room.
 To try a mission, choose **New collective → Mission sample** in the UI. Easy, medium and elaborate
-samples load editable goals and matching task budgets. The six smaller samples work offline;
-two advanced studio samples include their own specialized teams and communication graphs.
+samples load editable goals, task budgets and communication graphs. The easy samples start with
+three agents, and the medium samples use four. They replace a previously loaded studio team with
+a compact configuration. A small hiring demo recruits one temporary helper; two advanced studios
+provide larger specialized teams.
 From the terminal, use `uv run kollektiv run "Write a short poem about a robot in poem.md"`.
 A mission takes several model calls; progress appears as agents respond. Ollama speed depends
 on the machine and the amount of content requested.
@@ -78,8 +80,8 @@ The default team has four distinct personas:
    It can reopen tasks or add missing deliverables. Revising an input also reopens its dependents.
    Only an accepted whole-goal review produces `completed`.
 
-This is a fixed workflow with a dynamic team and task graph; adding a persona or changing the
-number of tasks does not require generating graph code. See [workflow.mmd](workflow.mmd), or
+The original team follows this reviewed workflow and can recruit temporary specialists while it
+works. Changing the team or task count does not require generating graph code. See [workflow.mmd](workflow.mmd), or
 run `uv run kollektiv graph` to render the current structure as Mermaid.
 
 Direct messages are addressed to an exact teammate name; `all` broadcasts to the team.
@@ -162,6 +164,48 @@ and [fifty-page-novel-studio.json](presets/fifty-page-novel-studio.json). Import
 or pass one to CLI `--config` together with your mission goal. Regenerate these files from the
 shared catalogue with `uv run python scripts/export_mission_presets.py`.
 
+## Hire, supervise and fire specialists
+
+The `hire` and `fire` skills are native agent tools with explicit permissions in **Edit team**.
+Granting `hire` also requires explicit `monitor_agents` and `instruct_agent` permissions, so every
+hiring persona can supervise its children. The editor selects those permissions together; imported
+configurations must include them explicitly. `fire` is a separate permission.
+Choose **Hire a garden specialist** under easy mission samples to try them with a three-agent
+starting team. The writer hires one helper, monitors its real results, integrates them into the
+garden plan and retires the helper. Other small samples keep a static three- or four-agent team.
+
+`hire` requires the exact child's `name`, `role`, `instructions`, `skills`, `tools`, `assignment`
+and `acceptance_criteria`. File-writing children also receive an `output` path; their assigned file
+lives under `delegates/<name>/` to keep ownership separate. Read-only children can omit `output`
+and return findings as text, including when their tools list is empty. Both kinds of work receive
+independent review. The original goal still needs its own complete deliverables and whole-goal audit.
+
+The hierarchy has three levels: original agents are level 1, their hires are level 2, and those
+hires' children are level 3. Level-3 agents cannot receive or execute `hire` or `fire`, including
+forged tool requests. Names remain unique across the run, including retired helpers. Run settings
+bound active helpers (`max_dynamic_agents`, default 8) and lifetime hires (`max_hires`, default 48).
+
+Each parent gets automatic, persistent inbox messages when a child changes status. `monitor_agents`
+shows its direct children's assignment, current node, recent tools, results and progress, with an
+optional short wait. `instruct_agent` sends a correction to a direct child; the next model call
+receives it automatically. Agents can supervise only their own direct children. Parent-child
+messages work alongside the configured static communication paths.
+
+`fire` retires a direct child and its descendants. It blocks future writes immediately; an active
+model call can finish, but its retired agent cannot execute subsequent tools. Completed artifacts
+and review history remain available. The live graph shows dashed family links and agent levels;
+the inspector exposes parent reports, child progress, findings, artifacts and retired history.
+An operator can send a child instruction or retire a family directly from the inspector while
+the collective runs. Other checkpoint and artifact edits still require pausing.
+
+Children reuse the existing LangGraph worker, review and SQLite checkpoint machinery, with a
+separate durable delegation ledger. Replayed hires return the same child; scoped writes have
+receipts so an interrupted call can recover without repeating the write. Stop and resume preserve
+unfinished children. Model calls share the run's concurrency limit, including nested hires, so
+a single-model setup does not require parallel Ollama calls. See the official
+[LangGraph persistence guide](https://docs.langchain.com/oss/python/langgraph/persistence) for the
+checkpoint and shared-store distinction used by this design.
+
 Create a goal and configure its model/team, then start it or step through one graph node at a time.
 Steps include individual worker model calls, tool executions and reviews. Pause waits for the
 current node to finish; stop preserves a checkpoint you can resume. Existing CLI runs appear in
@@ -189,6 +233,7 @@ Each invocation creates a unique `runs/<timestamp>-<id>/` directory containing:
 | `artifacts/` | Actual deliverables; the only location workers can write |
 | `run.json` | Original goal, team, model and settings |
 | `checkpoints.sqlite` | Durable graph and worker checkpoints |
+| `delegation.sqlite`, `delegate-checkpoints.sqlite` | Hired-agent definitions, status messages, write receipts and private worker checkpoints |
 | `state.json`, `plan.json` | Inspectable snapshots of task progress and the plan |
 | `messages.json`, `memory.json` | Team communication and shared memory |
 | `events.jsonl` | Model usage, tool results, artifact checksums, reviews and interruptions |
@@ -243,6 +288,7 @@ the CLI goal argument or goal file supplies the mission.
 | `structured_retries` | `2` | Schema repair retries using validation feedback |
 | `web_enabled` | `false` | Permit web tools for personas configured with them |
 | `communication_links` | `null` | Unrestricted optional messaging; a list of `{source, target}` paths restricts it, and `[]` disables it |
+| `max_dynamic_agents`, `max_hires` | `8`, `48` | Active hired workers and lifetime hires; hierarchy depth is always limited to three levels |
 
 A custom `team` replaces the whole roster. Each agent has `name`, `role`, `persona`, `skills`,
 `tools`, and an optional `model`. The `coordinator` and `reviewer` settings name two different team

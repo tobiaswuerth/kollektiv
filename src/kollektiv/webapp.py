@@ -152,6 +152,7 @@ class RunManager:
             "events": events,
             "cursor": next_cursor,
             "artifacts": artifacts,
+            "delegation": run.delegation.snapshot(),
         }
 
     def events(self, run_id: str, cursor: int = 0) -> dict:
@@ -164,6 +165,7 @@ class RunManager:
             "running": managed.running,
             "control": managed.control.snapshot() if managed.control else None,
             "error": managed.error,
+            "delegation": managed.collective.delegation.snapshot(),
         }
 
     def control(self, run_id: str, action: str, *, retry: bool = False) -> dict:
@@ -199,7 +201,8 @@ class RunManager:
         managed = self.get(run_id)
         with managed.lock:
             managed.collective.admin(action, control=managed.control, **fields)
-            managed.control = RunControl(start_paused=True)
+            if action not in ("instruct_agent", "fire_agent"):
+                managed.control = RunControl(start_paused=True)
         return self.snapshot(run_id)
 
     def close(self):

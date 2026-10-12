@@ -1,5 +1,10 @@
 import dagre from "@dagrejs/dagre";
-import type { CommunicationLink, GraphPosition, Settings } from "../types";
+import type {
+  CommunicationLink,
+  GraphPosition,
+  Settings,
+  Specialist,
+} from "../types";
 
 export function linkId(link: CommunicationLink) {
   return `${link.source}→${link.target}`;
@@ -37,6 +42,41 @@ export function layoutTeam(settings: Settings): Record<string, GraphPosition> {
       return [agent.name, { x: point.x - 107, y: point.y - 73 }];
     }),
   );
+}
+
+export function layoutRuntimeTeam(
+  settings: Settings,
+  specialists: Specialist[],
+  anchors: Record<string, GraphPosition> = {},
+) {
+  const active = specialists.filter((agent) => agent.status !== "retired");
+  const names = new Set(
+    [...settings.team, ...active].map((agent) => agent.name),
+  );
+  const positions = {
+    ...layoutTeam(settings),
+    ...Object.fromEntries(
+      Object.entries(anchors).filter(([name]) => names.has(name)),
+    ),
+  };
+  // A hire must not move its parent or collide with saved configuration positions.
+  // Place new family members beneath their actual parent, then find a free column.
+  const collides = (point: GraphPosition) =>
+    Object.values(positions).some(
+      (other) =>
+        Math.abs(point.x - other.x) < 244 && Math.abs(point.y - other.y) < 186,
+    );
+  active
+    .slice()
+    .sort((a, b) => a.level - b.level)
+    .forEach((agent) => {
+      if (positions[agent.name]) return;
+      const parent = positions[agent.parent] || { x: 0, y: 0 };
+      const point = { x: parent.x, y: parent.y + 211 };
+      while (collides(point)) point.x += 289;
+      positions[agent.name] = point;
+    });
+  return positions;
 }
 
 export function pulseProgress(start: number, end: number, now: number) {

@@ -8,6 +8,7 @@ export type FlowEdgeData = {
   count?: number;
   tone: string;
   label?: string;
+  hierarchy?: boolean;
 };
 
 /** Read the displayed path itself so packets remain attached while endpoints move. */
@@ -52,6 +53,7 @@ export function FlowEdge(props: EdgeProps) {
           stroke: data.tone,
           opacity: data.pulses?.length ? 0.9 : 0.35,
           strokeWidth: data.pulses?.length ? 2 : 1.2,
+          strokeDasharray: data.hierarchy ? "6 4" : undefined,
         }}
       />
       <path

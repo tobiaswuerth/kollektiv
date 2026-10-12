@@ -33,6 +33,7 @@ export function ActionDialog({
     {
       create: "Create a collective",
       inject_message: "Send an instruction",
+      instruct_agent: "Guide a specialist",
       share_note: "Share knowledge",
       retry_task: "Reopen task",
       reassign_task: "Reassign task",
@@ -80,6 +81,11 @@ export function ActionDialog({
         await intervene(action.kind, { goal, settings: JSON.parse(settings) });
       else if (action.kind === "inject_message")
         await intervene(action.kind, { recipient, content });
+      else if (action.kind === "instruct_agent")
+        await intervene(action.kind, {
+          agent_id: action.fields?.agent_id,
+          content,
+        });
       else if (action.kind === "share_note")
         await intervene(action.kind, { content });
       else
@@ -169,6 +175,27 @@ export function ActionDialog({
               Instruction
               <textarea
                 aria-label="Instruction"
+                required
+                maxLength={6000}
+                autoFocus
+                rows={5}
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
+            </label>
+          </>
+        )}
+        {action.kind === "instruct_agent" && (
+          <>
+            <p className="help">
+              Send a correction or a new constraint to{" "}
+              {action.fields?.name || "this specialist"}. They receive it at
+              their next work step.
+            </p>
+            <label>
+              Instruction
+              <textarea
+                aria-label="Specialist instruction"
                 required
                 maxLength={6000}
                 autoFocus

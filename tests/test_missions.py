@@ -36,6 +36,87 @@ def test_sample_copies_are_isolated_from_bootstrap_consumers():
     assert original["goal"] != edited[0]["goal"]
 
 
+@pytest.mark.parametrize(
+    ("sample_id", "expected_count"),
+    [
+        ("pip-field-card", 3),
+        ("picnic-plan", 3),
+        ("pip-silent-adventure", 4),
+        ("board-game-kit", 4),
+    ],
+)
+def test_small_missions_replace_studio_teams_and_expensive_budgets(sample_id, expected_count):
+    sample = ambitious_sample(sample_id)
+    studio = ambitious_sample("fifty-page-novel-studio")
+    current = Settings.model_validate(
+        {
+            **Settings().model_dump(),
+            **studio["settings"],
+            "model": "my-local-model",
+            "base_url": "http://localhost:9999",
+            "max_concurrency": 2,
+        }
+    )
+    loaded = Settings.model_validate({**current.model_dump(), **sample["settings"]})
+    assert len(loaded.team) == expected_count
+    assert len({agent.role for agent in loaded.team}) == expected_count
+    assert loaded.model == current.model
+    assert loaded.base_url == current.base_url
+    assert loaded.max_concurrency == current.max_concurrency
+    assert loaded.max_tasks <= 6
+    assert loaded.max_steps <= 12
+    assert loaded.discussion_rounds <= 2
+    assert loaded.num_ctx == 32_768
+    assert loaded.num_predict == 4_096
+    assert loaded.context_chars == 24_000
+    assert loaded.request_timeout == 180
+    assert not loaded.web_enabled
+    assert "write_file" not in loaded.agent(loaded.reviewer).tools
+    assert "write_file" not in loaded.agent(loaded.coordinator).tools
+    assert all(not tool.startswith("web_") for agent in loaded.team for tool in agent.tools)
+    names = {agent.name for agent in loaded.team}
+    assert set(sample["positions"]) == names
+    assert loaded.communication_links
+    for name in names:
+        assert loaded.allowed_recipients(name)
+        assert any(link.target == name for link in loaded.communication_links)
+
+
+def test_every_easy_and_medium_mission_has_a_compact_configuration():
+    for sample in mission_samples():
+        if sample["difficulty"] not in ("easy", "medium"):
+            continue
+        settings = Settings.model_validate({**Settings().model_dump(), **sample["settings"]})
+        assert 3 <= len(settings.team) <= 4
+        assert settings.communication_links is not None
+        assert set(sample["positions"]) == {agent.name for agent in settings.team}
+
+
+def test_easy_hiring_mission_starts_small_and_grants_only_its_writer_team_management():
+    sample = ambitious_sample("hire-a-garden-specialist")
+    settings = Settings.model_validate({**Settings().model_dump(), **sample["settings"]})
+    assert len(settings.team) == 3
+    assert settings.max_dynamic_agents == 1
+    assert settings.max_hires == 3
+    assert settings.max_steps >= 24
+    manager_tools = {"hire", "fire", "monitor_agents", "instruct_agent"}
+    assert manager_tools <= set(settings.agent("builder").tools)
+    for agent in settings.team:
+        if agent.name != "builder":
+            assert not manager_tools.intersection(agent.tools)
+    assert "garden_plan.md" in sample["goal"]
+    assert "delegates/herb_specialist/notes.md" in sample["goal"]
+    assert "read and check the actual notes artifact" in sample["goal"]
+    assert "retire the completed helper while retaining its notes" in sample["goal"]
+
+
+@pytest.mark.parametrize("sample_id", ["pip-field-card", "picnic-plan"])
+def test_static_easy_samples_keep_hiring_tools_disabled(sample_id):
+    sample = ambitious_sample(sample_id)
+    for agent in sample["settings"]["team"]:
+        assert not {"hire", "fire", "monitor_agents", "instruct_agent"}.intersection(agent["tools"])
+
+
 def ambitious_sample(sample_id):
     return next(sample for sample in mission_samples() if sample["id"] == sample_id)
 

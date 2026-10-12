@@ -7,6 +7,7 @@ import {
   draftFrom,
   parseConfiguration,
   removeAgent,
+  setToolPermission,
   updateAgent,
 } from "./editorModel";
 import { canFitGraph, layoutTeam, pulseProgress } from "./model";
@@ -44,6 +45,24 @@ const settings: Settings = {
 };
 
 describe("configuration editing", () => {
+  it("keeps hiring, monitoring and intervention permissions consistent and validates imported teams", () => {
+    const tools = setToolPermission(["read_file"], "hire", true);
+    expect(tools).toEqual([
+      "read_file",
+      "hire",
+      "monitor_agents",
+      "instruct_agent",
+    ]);
+    expect(setToolPermission(tools, "instruct_agent", false)).toEqual([
+      "read_file",
+      "monitor_agents",
+    ]);
+    const malformed = draftFrom(settings);
+    malformed.settings.team[1].tools.push("hire");
+    expect(configurationErrors(malformed)).toContain(
+      "worker: hire requires monitor_agents and instruct_agent.",
+    );
+  });
   it("saves reusable teams without a mission while requiring one to create a run", () => {
     const draft = draftFrom(settings);
     expect(configurationErrors(draft)).toEqual([]);

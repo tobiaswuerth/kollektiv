@@ -18,10 +18,12 @@ from .control import RunControl
 from .llm import Models, json_text
 from .models import (
     Contribution,
+    DiscussionOutput,
     DiscussionState,
     GoalReview,
     GraphState,
     Plan,
+    StaffingState,
     Task,
     TaskReview,
     WorkerOutput,
@@ -39,21 +41,55 @@ class Workflow:
         emit: Callable[..., dict],
         models: Any = None,
         control: RunControl | None = None,
+        delegation=None,
+        child_control: RunControl | None = None,
     ):
         self.settings = settings
         self.workspace = workspace
         self.emit = emit
         self.models = models or Models(settings, emit)
         self.control = control
+        self.delegation = delegation
+        self.child_control = child_control
+
+    def model_call(self, function, *args):
+        if self.delegation is None:
+            return function(*args)
+        with self.delegation.model_gate:
+            if self.child_control and self.child_control.snapshot()["stopped"]:
+                from .control import RunStopped
+
+                raise RunStopped("Sub-agent retired at a model boundary")
+            return function(*args)
+
+    def toolkit(self, agent, output=None, *, task_id=None, input_files=None, write_key=None):
+        return Toolkit(
+            self.settings,
+            self.workspace,
+            agent,
+            output,
+            self.emit,
+            input_files=input_files,
+            delegation=self.delegation,
+            task_id=task_id,
+            write_key=write_key,
+        )
 
     def controlled(self, node: str, function: Callable) -> Callable:
         def invoke(state: dict) -> dict:
             task = state.get("task", {})
             fields = {"task": task.get("id"), "agent": state.get("agent_name") or task.get("owner")}
-            token = self.control.enter(node, **fields) if self.control else None
+            if self.delegation and fields["agent"]:
+                self.delegation.check_active(fields["agent"])
+            cancel = (
+                (lambda: self.child_control.snapshot()["stopped"]) if self.child_control else None
+            )
+            token = self.control.enter(node, cancel=cancel, **fields) if self.control else None
             self.emit("node_started", node=node, **fields)
             try:
                 result = function(state)
+                if self.delegation and fields["agent"]:
+                    self.delegation.check_active(fields["agent"])
                 self.emit("node_finished", node=node, **fields)
                 return result
             except BaseException as exc:
@@ -74,10 +110,25 @@ class Workflow:
         context = {
             "team": roster,
             "shared_memory": list(state.get("notes", {}).values())[-20:],
-            "your_inbox": visible_messages(state.get("messages", {}), agent),
+            "your_inbox": visible_messages(
+                {
+                    **state.get("messages", {}),
+                    **(self.delegation.messages_for(agent) if self.delegation else {}),
+                },
+                agent,
+            ),
             "allowed_message_recipients": self.settings.allowed_recipients(agent),
             "team_findings": list(state.get("contributions", {}).values())[-len(roster) :],
         }
+        if self.delegation:
+            context["subagents"] = self.delegation.context(agent)
+            _, level = self.delegation.actor(agent)
+            family = self.delegation.allowed_recipients(agent)
+            context["allowed_message_recipients"] = (
+                family
+                if level > 1
+                else list(dict.fromkeys([*context["allowed_message_recipients"], *family]))
+            )
         return json_text(context)
 
     def discussion(self, state: DiscussionState) -> dict:
@@ -96,7 +147,7 @@ class Workflow:
             f"{message_instruction}Keep findings focused, about 150 words. "
             "If no web tools are used, label outside facts as assumptions; never invent sources."
         )
-        toolkit = Toolkit(self.settings, self.workspace, name, None, self.emit)
+        toolkit = self.toolkit(name, task_id=f"discussion:{state['discussion_round']}:{name}")
         research = []
         if self.settings.web_enabled and "web_search" in self.settings.agent(name).tools:
             tools = toolkit.build()
@@ -110,7 +161,7 @@ class Workflow:
                 ),
             ]
             for _ in range(min(4, self.settings.max_steps)):
-                reply = self.models.act(name, history, tools)
+                reply = self.model_call(self.models.act, name, history, tools)
                 history.append(reply)
                 if not reply.tool_calls:
                     break
@@ -125,7 +176,7 @@ class Workflow:
             if recipients and not contribution.messages:
                 raise ValueError("Include at least one actionable message to a teammate")
 
-        result = self.models.structured(name, Contribution, prompt, validate)
+        result = self.model_call(self.models.structured, name, Contribution, prompt, validate)
         messages = dict(toolkit.messages)
         for draft in result.messages:
             for recipient in self.settings.message_recipients(name, draft.recipient):
@@ -176,6 +227,11 @@ class Workflow:
         }
         if any(t.owner not in owners for t in plan.tasks):
             raise ValueError(f"Task owners must be one of the workers: {sorted(owners)}")
+        if any(
+            t.output.casefold() == "delegates" or t.output.casefold().startswith("delegates/")
+            for t in plan.tasks
+        ):
+            raise ValueError("The delegates/ namespace is reserved for dynamically hired agents")
 
     def plan(self, state: GraphState) -> dict:
         prompt = (
@@ -202,7 +258,9 @@ class Workflow:
             "story.md writing task depending on it. Additional planning documents are useful "
             "only when their contents are indispensable for a complex deliverable."
         )
-        plan = self.models.structured(self.settings.coordinator, Plan, prompt, self.validate_plan)
+        plan = self.model_call(
+            self.models.structured, self.settings.coordinator, Plan, prompt, self.validate_plan
+        )
         tasks = {
             t.id: {**t.model_dump(), "status": "pending", "attempts": 0, "feedback": ""}
             for t in plan.tasks
@@ -216,14 +274,15 @@ class Workflow:
 
     def worker_prompt(self, state: WorkerState) -> str:
         task = state["task"]
-        return (
-            f"YOUR TASK:\n{json_text(task)}\n"
+        scope = (
             f"Your assigned output is exactly {task['output']}. Complete this task only. "
             "Other agents handle other deliverables; an intermediate document must satisfy "
             "its own task criteria rather than contain the final project output.\n"
-            f"PROJECT GOAL FOR CONTEXT:\n{state['goal']}\nPLAN:\n{state['plan_summary']}\n"
-            f"{self.team_context(state, task['owner'])}\n"
-            f"REVIEW FEEDBACK:\n{state.get('feedback') or 'First attempt.'}\n"
+            if task.get("output")
+            else "You have a read-only assignment and no assigned file. Use your permitted tools "
+            "to complete the assignment and finish with your complete findings as a text response.\n"
+        )
+        writing = (
             "Read the dependency files listed in the task before writing. "
             "Use write_file to produce the complete assigned artifact, including all content. "
             "write_file takes only content; its output path is already bound to your task. "
@@ -232,31 +291,54 @@ class Workflow:
             "assigned output directly without making you repeat the entire text. "
             "Do not replace a successfully assembled artifact with a shortened write_file call. "
             "Read any existing version before making corrections. Use check_file when helpful. "
-            "Send useful decisions or questions to teammates and save reusable facts with share_note. "
             "You can only write your assigned output. After writing it, finish with a brief summary. "
-            "The reviewer will inspect the actual file against every acceptance criterion."
+            if task.get("output")
+            else "Read actual inputs when relevant. Report evidence and uncertainty clearly. "
         )
+        return (
+            f"YOUR TASK:\n{json_text(task)}\n"
+            f"{scope}"
+            f"PROJECT GOAL FOR CONTEXT:\n{state['goal']}\nPLAN:\n{state['plan_summary']}\n"
+            f"{self.team_context(state, task['owner'])}\n"
+            f"REVIEW FEEDBACK:\n{state.get('feedback') or 'First attempt.'}\n"
+            f"{writing}"
+            "Send useful decisions or questions to teammates and save reusable facts with share_note. "
+            "If hiring is available, specify the exact child name, role, instructions, skills and "
+            "tools plus its assignment. Hires have their own output under delegates/name/ or can "
+            "return text findings with output omitted. Status changes arrive automatically in your "
+            "inbox; monitor_agents shows current progress, instruct_agent redirects a direct child, "
+            "and fire retires it while preserving completed work. Level-3 agents cannot hire or fire. "
+            "Wait for actual results and inspect them before integration; never claim a hire's "
+            "work is done just because it was launched. Retire finished helpers when no longer needed. "
+            "The reviewer will inspect the actual result against every acceptance criterion."
+        )
+
+    @staticmethod
+    def final_response(state: WorkerState) -> str:
+        if not state.get("reply"):
+            return ""
+        reply = messages_from_dict([state["reply"]])[0]
+        return reply.content if isinstance(reply.content, str) else json_text(reply.content)
 
     def act(self, state: WorkerState) -> dict:
         task = state["task"]
-        toolkit = Toolkit(
-            self.settings,
-            self.workspace,
+        toolkit = self.toolkit(
             task["owner"],
             task["output"],
-            self.emit,
+            task_id=task["id"],
             input_files=task.get("input_files", []),
         )
         tools = toolkit.build()
         history = messages_from_dict(state.get("history", []))
         prompt = self.worker_prompt(state)
         messages = [self.models.system(task["owner"]), HumanMessage(content=prompt), *history]
-        reply = self.models.act(task["owner"], messages, tools)
+        reply = self.model_call(self.models.act, task["owner"], messages, tools)
         return {
             "history": messages_to_dict([reply]),
             "reply": messages_to_dict([reply])[0],
             "steps": state.get("steps", 0) + 1,
             "finished": not (reply.tool_calls or reply.invalid_tool_calls),
+            "delegation_revision": self.delegation.snapshot()["revision"] if self.delegation else 0,
             "events": self.event(
                 "worker_step",
                 agent=task["owner"],
@@ -268,19 +350,159 @@ class Workflow:
 
     def after_act(self, state: WorkerState) -> str:
         if state["finished"]:
+            if self.has_children_working(state["task"]["owner"]):
+                return "await_children"
             return "review"
         return "tools"
+
+    def has_children_working(self, agent: str) -> bool:
+        if not self.delegation:
+            return False
+        return any(
+            child["parent"] == agent and child["status"] not in ("completed", "failed", "retired")
+            for child in self.delegation.snapshot()["agents"].values()
+        )
+
+    def await_children(self, state: WorkerState) -> dict:
+        owner = state["task"]["owner"]
+        self.delegation.raise_if_interrupted(owner)
+        self.delegation.wait_for_child_change(owner, state.get("delegation_revision", 0), 0.25)
+        revision = self.delegation.snapshot()["revision"]
+        return {
+            "delegation_revision": revision,
+            "delegation_changed": revision != state.get("delegation_revision", 0),
+            "finished": False,
+        }
+
+    def after_await_children(self, state: WorkerState) -> str:
+        working = self.has_children_working(state["task"]["owner"])
+        if state["steps"] >= self.settings.max_steps:
+            return "await_children" if working else "review"
+        if working and not state.get("delegation_changed"):
+            return "await_children"
+        return "act"
+
+    def staff_act(self, state: StaffingState) -> dict:
+        name = state["agent_name"]
+        toolkit = self.toolkit(name, task_id=f"discussion:{state['discussion_round']}:{name}")
+        prompt = (
+            f"SHARED GOAL:\n{state['goal']}\n{self.team_context(state, name)}\n"
+            "Prepare your contribution. Use hire only when a focused specialist is needed, "
+            "specifying its exact name, role, instructions, skills, tools and assignment. "
+            "Original agents are level 1; their children are level 2; grandchildren are level 3 "
+            "and cannot hire or fire. Inspect automatic status messages and monitor_agents; "
+            "use instruct_agent to correct your child and fire to retire it when its work is done. "
+            "Hires write separate files under delegates/name/; the original team integrates "
+            "those files into planned deliverables. Do not hire just to repeat another role. "
+            "There is no output assigned during this discussion. Finish with a concise recommendation."
+        )
+        reply = self.model_call(
+            self.models.act,
+            name,
+            [
+                self.models.system(name),
+                HumanMessage(content=prompt),
+                *messages_from_dict(state.get("history", [])),
+            ],
+            toolkit.build(),
+        )
+        return {
+            "history": messages_to_dict([reply]),
+            "reply": messages_to_dict([reply])[0],
+            "steps": state.get("steps", 0) + 1,
+            "finished": not (reply.tool_calls or reply.invalid_tool_calls),
+            "delegation_revision": self.delegation.snapshot()["revision"],
+        }
+
+    def staff_tools(self, state: StaffingState) -> dict:
+        name = state["agent_name"]
+        toolkit = self.toolkit(name, task_id=f"discussion:{state['discussion_round']}:{name}")
+        reply = messages_from_dict([state["reply"]])[0]
+        response = ToolNode(toolkit.build(), handle_tool_errors=True).invoke({"messages": [reply]})
+        for message in response["messages"]:
+            self.emit(
+                "tool_result",
+                agent=name,
+                tool=getattr(message, "name", None),
+                status=getattr(message, "status", None),
+                content=str(message.content)[:16000],
+            )
+        return {
+            "history": messages_to_dict(response["messages"]),
+            "messages": {**state.get("messages", {}), **toolkit.messages},
+            "notes": {**state.get("notes", {}), **toolkit.notes},
+        }
+
+    def after_staff(self, state: StaffingState) -> str:
+        if state.get("finished") or state.get("steps", 0) >= self.settings.max_steps:
+            return "wait" if self.has_children_working(state["agent_name"]) else "contribute"
+        return "tools"
+
+    def after_staff_tools(self, state: StaffingState) -> str:
+        if state.get("steps", 0) >= self.settings.max_steps:
+            return "wait" if self.has_children_working(state["agent_name"]) else "contribute"
+        return "act"
+
+    def staff_wait(self, state: StaffingState) -> dict:
+        self.delegation.raise_if_interrupted(state["agent_name"])
+        self.delegation.wait_for_child_change(
+            state["agent_name"], state.get("delegation_revision", 0), 0.25
+        )
+        revision = self.delegation.snapshot()["revision"]
+        return {
+            "delegation_revision": revision,
+            "delegation_changed": revision != state.get("delegation_revision", 0),
+        }
+
+    def after_staff_wait(self, state: StaffingState) -> str:
+        if self.has_children_working(state["agent_name"]) and (
+            not state.get("delegation_changed") or state.get("steps", 0) >= self.settings.max_steps
+        ):
+            return "wait"
+        return "act" if state.get("steps", 0) < self.settings.max_steps else "contribute"
+
+    def build_discussion(self):
+        if not self.delegation:
+            return self.controlled("discuss", self.discussion)
+        graph = StateGraph(StaffingState, output_schema=DiscussionOutput)
+        graph.add_node("act", self.controlled("staff.act", self.staff_act))
+        graph.add_node("tools", self.controlled("staff.tools", self.staff_tools))
+        graph.add_node("wait", self.controlled("staff.wait", self.staff_wait))
+        graph.add_node("contribute", self.controlled("discuss", self.discussion))
+        graph.add_conditional_edges(
+            START,
+            lambda s: (
+                "act"
+                if any(
+                    tool in self.settings.agent(s["agent_name"]).tools
+                    for tool in ("hire", "fire", "instruct_agent")
+                )
+                else "contribute"
+            ),
+            ["act", "contribute"],
+        )
+        graph.add_conditional_edges("act", self.after_staff, ["tools", "wait", "contribute"])
+        graph.add_conditional_edges("tools", self.after_staff_tools, ["act", "wait", "contribute"])
+        graph.add_conditional_edges("wait", self.after_staff_wait, ["act", "wait", "contribute"])
+        graph.add_edge("contribute", END)
+        return graph.compile()
 
     def execute(self, state: WorkerState) -> dict:
         task = state["task"]
         reply = messages_from_dict([state["reply"]])[0]
-        toolkit = Toolkit(
-            self.settings,
-            self.workspace,
+        toolkit = self.toolkit(
             task["owner"],
             task["output"],
-            self.emit,
+            task_id=task["id"],
             input_files=task.get("input_files", []),
+            write_key=next(
+                (
+                    call["id"]
+                    for call in reply.tool_calls
+                    if call["name"] in ("write_file", "assemble_files")
+                ),
+                None,
+            ),
         )
         if reply.invalid_tool_calls and not reply.tool_calls:
             messages = [
@@ -322,10 +544,39 @@ class Workflow:
         }
 
     def after_tools(self, state: WorkerState) -> str:
+        if state["steps"] >= self.settings.max_steps and self.has_children_working(
+            state["task"]["owner"]
+        ):
+            return "await_children"
         return "review" if state["steps"] >= self.settings.max_steps else "act"
 
     def review_task(self, state: WorkerState) -> dict:
         task = state["task"]
+        if not task.get("output"):
+            response = self.final_response(state)
+            if not response.strip():
+                review = TaskReview(
+                    decision="revise",
+                    feedback="Return complete findings in your final text response.",
+                    reflection="Read-only workers must return their actual findings.",
+                )
+            else:
+                if len(response) > self.settings.context_chars:
+                    raise ValueError(
+                        "Read-only findings exceed context_chars; increase the review context budget"
+                    )
+                prompt = (
+                    f"TASK:\n{json_text(task)}\nACTUAL FINAL RESPONSE:\n{response}\n"
+                    f"ACTUAL INPUT FILES:\n{self.workspace.context(task.get('input_files', []), self.settings.context_chars)}\n"
+                    f"PROJECT GOAL FOR CONTEXT:\n{state['goal']}\n"
+                    "Independently check every acceptance criterion against the actual response. "
+                    "Reject incomplete findings, unsupported claims or missing requirements. "
+                    "This is a read-only assignment; a separate output file is not required."
+                )
+                review = self.model_call(
+                    self.models.structured, self.settings.reviewer, TaskReview, prompt
+                )
+            return self.review_result(state, review)
         errors = []
         try:
             info = self.workspace.inspect(task["output"])
@@ -355,7 +606,13 @@ class Workflow:
                 "If rejecting, explain concrete corrections for the owner. "
                 "Record a concise lesson or design decision for future team work."
             )
-            review = self.models.structured(self.settings.reviewer, TaskReview, prompt)
+            review = self.model_call(
+                self.models.structured, self.settings.reviewer, TaskReview, prompt
+            )
+        return self.review_result(state, review)
+
+    def review_result(self, state: WorkerState, review: TaskReview) -> dict:
+        task = state["task"]
         message = record(
             self.settings.reviewer,
             review.feedback,
@@ -405,16 +662,18 @@ class Workflow:
         task = state["task"]
         review = state["review"]
         artifact = None
-        try:
-            artifact = self.workspace.inspect(task["output"])
-        except (OSError, ValueError):
-            pass
+        if task.get("output"):
+            try:
+                artifact = self.workspace.inspect(task["output"])
+            except (OSError, ValueError):
+                pass
         result = {
             "task_id": task["id"],
             "status": "completed" if review["accepted"] else "failed",
             "attempts": state["attempt"],
             "feedback": review["feedback"],
             "artifact": artifact,
+            "summary": self.final_response(state),
         }
         note = record(task["owner"], review["reflection"], task=task["id"])
         message = record(
@@ -432,20 +691,26 @@ class Workflow:
             "events": self.event("task_finished", task=task["id"], status=result["status"]),
         }
 
-    def build_worker(self):
-        worker = StateGraph(WorkerState, output_schema=WorkerOutput)
+    def build_worker(self, checkpointer=None, *, full_state=False):
+        worker = StateGraph(WorkerState, output_schema=WorkerState if full_state else WorkerOutput)
         worker.add_node("act", self.controlled("worker.act", self.act))
         worker.add_node("tools", self.controlled("worker.tools", self.execute))
         worker.add_node("review", self.controlled("worker.review", self.review_task))
         worker.add_node("retry", self.controlled("worker.retry", self.retry))
         worker.add_node("finish", self.controlled("worker.finish", self.finish_worker))
+        worker.add_node(
+            "await_children", self.controlled("worker.await_children", self.await_children)
+        )
         worker.add_edge(START, "act")
-        worker.add_conditional_edges("act", self.after_act, ["tools", "review"])
-        worker.add_conditional_edges("tools", self.after_tools, ["act", "review"])
+        worker.add_conditional_edges("act", self.after_act, ["tools", "review", "await_children"])
+        worker.add_conditional_edges("tools", self.after_tools, ["act", "review", "await_children"])
+        worker.add_conditional_edges(
+            "await_children", self.after_await_children, ["act", "review", "await_children"]
+        )
         worker.add_conditional_edges("review", self.after_review, ["retry", "finish"])
         worker.add_edge("retry", "act")
         worker.add_edge("finish", END)
-        return worker.compile()
+        return worker.compile(checkpointer=checkpointer)
 
     def collect(self, state: GraphState) -> dict:
         tasks = {k: dict(v) for k, v in state["tasks"].items()}
@@ -521,7 +786,8 @@ class Workflow:
                 f"ORIGINAL USER GOAL:\n{state['goal']}\n"
                 f"PLAN:\n{json_text(state['plan'])}\n"
                 f"TASK REVIEWS:\n{json_text(tasks)}\n"
-                f"ACTUAL DELIVERABLES:\n{self.workspace.context([t['output'] for t in tasks.values()], self.settings.context_chars)}\n"
+                f"DELEGATED WORK:\n{json_text(self.delegated_review_context())}\n"
+                f"ACTUAL DELIVERABLES:\n{self.workspace.context([t['output'] for t in tasks.values()] + self.delegate_outputs(), self.settings.context_chars)}\n"
                 "Determine whether the WHOLE user goal has been achieved. Audit each explicit "
                 "requirement using these actual files, including cross-file coherence. "
                 "Task approvals alone do not establish goal completion. "
@@ -550,11 +816,44 @@ class Workflow:
                 if not review.achieved and not (review.revise_tasks or review.additional_tasks):
                     raise ValueError("Identify actionable task revisions or missing deliverables")
 
-            review = self.models.structured(self.settings.reviewer, GoalReview, prompt, validate)
+            review = self.model_call(
+                self.models.structured, self.settings.reviewer, GoalReview, prompt, validate
+            )
         return {
             "goal_review": review.model_dump(),
             "events": self.event("goal_review", **review.model_dump()),
         }
+
+    def delegate_outputs(self) -> list[str]:
+        if not self.delegation:
+            return []
+        return [
+            job["output"]
+            for job in self.delegation.snapshot()["agents"].values()
+            if job.get("artifact")
+        ]
+
+    def delegated_review_context(self) -> list[dict]:
+        if not self.delegation:
+            return []
+        fields = (
+            "name",
+            "parent",
+            "level",
+            "status",
+            "role",
+            "assignment",
+            "tools",
+            "output",
+            "summary",
+            "error",
+            "artifact",
+            "result",
+        )
+        return [
+            {key: job.get(key) for key in fields}
+            for job in self.delegation.snapshot()["agents"].values()
+        ]
 
     def after_goal_review(self, state: GraphState) -> str:
         if state["goal_review"]["achieved"]:
@@ -637,7 +936,7 @@ class Workflow:
             "begin",
             self.controlled("begin", lambda _: {"discussion_round": 1, "status": "discussing"}),
         )
-        graph.add_node("discuss", self.controlled("discuss", self.discussion))
+        graph.add_node("discuss", self.build_discussion())
         graph.add_node(
             "discussion_join",
             self.controlled(
