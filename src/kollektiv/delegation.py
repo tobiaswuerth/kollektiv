@@ -37,19 +37,30 @@ class HireRequest(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    name: str = Field(pattern=r"^[a-z][a-z0-9_-]{0,39}$")
+    name: str = Field(
+        pattern=r"^[a-z][a-z0-9_-]{0,39}$",
+        description="Unique lowercase identifier, starting with a letter; use letters, digits, underscores or hyphens",
+        examples=["paper_outliner", "chapter_writer"],
+    )
     role: str = Field(min_length=1, max_length=2000)
     instructions: str = Field(min_length=1, max_length=30000)
     skills: list[str] = Field(max_length=50)
-    tools: list[ToolName] = Field(max_length=30)
+    tools: list[ToolName] = Field(
+        max_length=30,
+        description="Exact permissions. File authors need write_file; read-only reports can use an empty list",
+    )
     assignment: str = Field(min_length=1, max_length=30000)
     output: str | None = Field(
         default=None,
         description="Relative output inside the child's unique delegates/name folder, or null for a read-only report",
+        examples=["outline.md", "notes/research.md", None],
     )
     acceptance_criteria: list[str] = Field(min_length=1, max_length=30)
     input_files: list[str] = Field(default_factory=list, max_length=100)
-    model: str | None = None
+    model: str | None = Field(
+        default=None,
+        description="Legacy request provenance only; runtime model inherits from the parent",
+    )
 
     @model_validator(mode="after")
     def validate_supervision(self) -> HireRequest:
@@ -223,6 +234,54 @@ class DelegationManager:
         data["team"] += [job["definition"] for job in self.snapshot()["agents"].values()]
         return Settings.model_validate(data)
 
+    def inherited_model(self, parent: str) -> str:
+        """Resolve the exact configured model used by the immediate parent."""
+        agent, _ = self.actor(parent)
+        return agent.model or self.settings.model
+
+    def reset_child_model(self, identity: str) -> dict:
+        """Repair an unfinished child's model while preserving its execution identity.
+
+        The caller must hold the collective's OS run lock. The original hire request
+        remains immutable provenance for auditing and tool-call replay. This
+        edits only execution configuration and retains interruption evidence until
+        the owning runner resumes the same checkpoint.
+        """
+        with self._condition:
+            if self._running or any(thread.is_alive() for thread in self._threads.values()):
+                raise ValueError("Stop the collective before resetting a child model")
+            job = self.get(identity)
+            if job["status"] not in ACTIVE:
+                raise ValueError("Only an unfinished subagent's model can be reset")
+            previous = job.get("model")
+            inherited = self.inherited_model(job["parent"])
+            job["model"] = inherited
+            job["definition"] = {**job["definition"], "model": inherited}
+            event = self._history(
+                job,
+                "agent_model_reset",
+                agent=job["name"],
+                child=job["id"],
+                parent=job["parent"],
+                previous_model=previous,
+                model=inherited,
+            )
+            self._save(job)
+            message = self._message(
+                "admin",
+                job["parent"],
+                f"Subagent {job['name']}'s execution model was reset from "
+                f"{str(previous)[:500]} to the parent's configured model {inherited[:500]}. "
+                "Its identity, artifacts and checkpoint are preserved. Resume to continue. "
+                "Future hires inherit your model. File authors need write_file and a "
+                "child-relative output such as outline.md; read-only reports use output=null.",
+                system=True,
+                child=job["id"],
+                model=inherited,
+            )
+        self._publish([("agent_model_reset", event), ("message", message)])
+        return self.get(job["name"])
+
     def _require(self, parent: str, capability: str) -> tuple[Agent, int]:
         agent, level = self.actor(parent)
         if level >= 3 and capability in {"hire", "fire"}:
@@ -326,7 +385,11 @@ class DelegationManager:
             jobs = self._jobs()
             existing = next((job for job in jobs.values() if job["request_key"] == key), None)
             if existing is not None:
-                if existing["request"] != request.model_dump():
+                # Native tools omit the historical model argument. Model selection
+                # now belongs to the runtime, so it cannot invalidate an otherwise
+                # identical checkpointed hire. Keep the original ledger untouched.
+                original = HireRequest.model_validate(existing["request"])
+                if original.model_dump(exclude={"model"}) != request.model_dump(exclude={"model"}):
                     raise ValueError("Replayed hire arguments differ from the original request")
                 return existing
             if request.name in jobs or request.name in {agent.name for agent in self.settings.team}:
@@ -335,9 +398,16 @@ class DelegationManager:
                 raise ValueError("Level-3 subagents cannot be granted hire or fire")
             writing = bool({"write_file", "assemble_files"} & set(request.tools))
             if writing and request.output is None:
-                raise ValueError("A child with writing tools needs an assigned output")
+                raise ValueError(
+                    "A child with writing tools needs an assigned output. Supply a child-relative "
+                    "output such as 'outline.md'; the runtime places it under delegates/<name>/."
+                )
             if not writing and request.output is not None:
-                raise ValueError("A read-only child must use output=null")
+                raise ValueError(
+                    "A read-only child must use output=null to return text findings. To author "
+                    "a file, include write_file in tools and use a child-relative output such "
+                    "as 'outline.md'. Writable hires are supported."
+                )
             if (
                 "assemble_files" in request.tools
                 and "write_file" not in request.tools
@@ -364,13 +434,14 @@ class DelegationManager:
             )
             if output:
                 self.workspace.path(output)  # Resolve symlinks before persisting a scope.
+            inherited = self.inherited_model(parent)
             definition = Agent(
                 name=request.name,
                 role=request.role,
                 persona=request.instructions,
                 skills=request.skills,
                 tools=request.tools,
-                model=request.model,
+                model=inherited,
             ).model_dump()
             job = {
                 "id": identity,
@@ -380,7 +451,7 @@ class DelegationManager:
                 "instructions": request.instructions,
                 "skills": request.skills,
                 "tools": request.tools,
-                "model": request.model,
+                "model": inherited,
                 "definition": definition,
                 "parent": parent,
                 "parent_id": jobs.get(parent, {}).get("id"),

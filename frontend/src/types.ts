@@ -4,7 +4,7 @@ export type Agent = {
   persona: string;
   skills: string[];
   tools: string[];
-  model?: string;
+  model?: string | null;
 };
 export type SpecialistStatus =
   | "pending"

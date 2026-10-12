@@ -32,6 +32,17 @@ from .models import (
 from .tools import Toolkit, record, visible_messages
 from .workspace import Workspace
 
+HIRING_GUIDANCE = (
+    "For hire, choose a unique lowercase name such as paper_outliner, using only letters, "
+    "digits, underscores or hyphens (at most 40 characters, starting with a letter). "
+    "Specify its exact role, instructions, skills, tools, assignment and acceptance_criteria. "
+    "Children inherit your configured model automatically; omit model. "
+    "For a file deliverable, grant write_file and provide output relative to the child's folder, "
+    "such as outline.md; the runtime adds delegates/name/ automatically. "
+    "For read-only findings, omit output or set it to null. Read-only findings cannot be "
+    "assembled as a file; hire an author with write_file when you need a publishable artifact. "
+)
+
 
 class Workflow:
     def __init__(
@@ -305,9 +316,8 @@ class Workflow:
             f"REVIEW FEEDBACK:\n{state.get('feedback') or 'First attempt.'}\n"
             f"{writing}"
             "Send useful decisions or questions to teammates and save reusable facts with share_note. "
-            "If hiring is available, specify the exact child name, role, instructions, skills and "
-            "tools plus its assignment. Hires have their own output under delegates/name/ or can "
-            "return text findings with output omitted. Status changes arrive automatically in your "
+            f"{HIRING_GUIDANCE if 'hire' in self.settings.agent(task['owner']).tools else ''}"
+            "Status changes arrive automatically in your "
             "inbox; monitor_agents shows current progress, instruct_agent redirects a direct child, "
             "and fire retires it while preserving completed work. Level-3 agents cannot hire or fire. "
             "Wait for actual results and inspect them before integration; never claim a hire's "
@@ -408,7 +418,7 @@ class Workflow:
         prompt = (
             f"SHARED GOAL:\n{state['goal']}\n{self.team_context(state, name)}\n"
             "Prepare your contribution. Use hire only when a focused specialist is needed, "
-            "specifying its exact name, role, instructions, skills, tools and assignment. "
+            f"and follow these requirements: {HIRING_GUIDANCE}"
             "Original agents are level 1; their children are level 2; grandchildren are level 3 "
             "and cannot hire or fire. Inspect automatic status messages and monitor_agents; "
             "use instruct_agent to correct your child and fire to retire it when its work is done. "

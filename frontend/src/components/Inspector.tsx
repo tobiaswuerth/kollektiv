@@ -31,7 +31,7 @@ export function Inspector({
 }: {
   admin: (action: string, fields?: Record<string, string>) => void;
 }) {
-  const { snapshot, defaults, selection, select, events, intervene } =
+  const { snapshot, defaults, selection, select, events, intervene, busy } =
     useRoom();
   const config = snapshot?.manifest.settings || defaults,
     allowed = canAdmin(snapshot);
@@ -103,6 +103,19 @@ export function Inspector({
     setError("");
     try {
       await intervene("fire_agent", { agent_id: specialist.id });
+    } catch (error) {
+      setError(String(error));
+    } finally {
+      setSaving(false);
+    }
+  };
+  const resetModel = async () => {
+    if (!specialist || snapshot?.running || specialist.status !== "interrupted")
+      return;
+    setSaving(true);
+    setError("");
+    try {
+      await intervene("reset_agent_model", { agent_id: specialist.id });
     } catch (error) {
       setError(String(error));
     } finally {
@@ -255,7 +268,28 @@ export function Inspector({
                     )}
                     <dt>{specialist.output ? "Output" : "Deliverable"}</dt>
                     <dd>{specialist.output || "Report to parent"}</dd>
+                    <dt>Model</dt>
+                    <dd>
+                      {specialist.model || config?.model || "Default model"}
+                    </dd>
                   </dl>
+                  {specialist.status === "interrupted" &&
+                    !snapshot?.running && (
+                      <div className="specialist-model-recovery">
+                        <button
+                          className="button wide"
+                          disabled={saving || busy}
+                          onClick={() => void resetModel()}
+                        >
+                          <RotateCcw size={13} />
+                          Use parent model
+                        </button>
+                        <p className="help">
+                          Switch to the parent’s model, then resume the
+                          collective to continue this specialist’s saved work.
+                        </p>
+                      </div>
+                    )}
                   {specialist.summary && <p>{specialist.summary}</p>}
                   {specialist.error && (
                     <p className="error-text">{specialist.error}</p>

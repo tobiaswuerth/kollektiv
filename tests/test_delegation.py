@@ -81,7 +81,7 @@ def test_hire_exact_contract_runs_independently_and_preserves_static_settings(le
         "persona": request().instructions,
         "skills": ["writing", "validation"],
         "tools": ["read_file", "write_file", "check_file", "send_message"],
-        "model": None,
+        "model": settings.model,
     }
     assert settings.model_dump() == original
     assert manager.child_settings("assistant").agent("assistant").persona == request().instructions
@@ -127,6 +127,23 @@ def test_replayed_and_concurrent_hire_has_one_child_and_one_execution(ledger):
         manager.hire("builder", request(role="Changed role"), "stable-id", "task-a")
 
 
+def test_legacy_model_argument_does_not_invalidate_identical_hire_replay(ledger):
+    manager, _, _, _ = ledger
+    original = manager.hire("builder", request(model="GPT-4o"), "legacy-call", "same-task")
+    replayed = manager.hire("builder", request(model=None), "legacy-call", "same-task")
+    assert replayed["id"] == original["id"]
+    assert replayed["request"] == original["request"]
+    assert replayed["request"]["model"] == "GPT-4o"
+    assert replayed["model"] == manager.settings.model
+    with pytest.raises(ValueError, match="arguments differ"):
+        manager.hire(
+            "builder",
+            request(model=None, assignment="A different assignment."),
+            "legacy-call",
+            "same-task",
+        )
+
+
 def test_real_toolnode_injects_call_id_and_enforces_exact_tools(ledger):
     manager, settings, workspace, _ = ledger
     toolkit = Toolkit(
@@ -141,6 +158,7 @@ def test_real_toolnode_injects_call_id_and_enforces_exact_tools(ledger):
     tools = toolkit.build()
     hire_tool = next(tool for tool in tools if tool.name == "hire")
     assert "tool_call_id" not in hire_tool.tool_call_schema.model_json_schema()["properties"]
+    assert "model" not in hire_tool.tool_call_schema.model_json_schema()["properties"]
     reply = AIMessage(
         content="",
         tool_calls=[

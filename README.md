@@ -192,6 +192,12 @@ lives under `delegates/<name>/` to keep ownership separate. Read-only children c
 and return findings as text, including when their tools list is empty. Both kinds of work receive
 independent review. The original goal still needs its own complete deliverables and whole-goal audit.
 
+Children inherit their parent's configured Ollama model, including an explicit parent override.
+The model is chosen by configuration rather than the `hire` call. Child names must be lowercase
+identifiers such as `paper_outliner`; provide `outline.md` as the output and the runtime adds
+`delegates/paper_outliner/` automatically. Give file authors `write_file`; read-only findings
+remain reports and cannot be passed directly to `assemble_files`.
+
 The hierarchy has three levels: original agents are level 1, their hires are level 2, and those
 hires' children are level 3. Level-3 agents cannot receive or execute `hire` or `fire`, including
 forged tool requests. Names remain unique across the run, including retired helpers. Run settings
@@ -209,6 +215,9 @@ and review history remain available. The live graph shows dashed family links an
 the inspector exposes parent reports, child progress, findings, artifacts and retired history.
 An operator can send a child instruction or retire a family directly from the inspector while
 the collective runs. Other checkpoint and artifact edits still require pausing.
+For an interrupted child with an incorrect model, **Use parent model** in its inspector resets
+the model while the run is idle. Resume then continues the existing child checkpoint and preserves
+its assignment, tools and completed writes.
 
 Children reuse the existing LangGraph worker, review and SQLite checkpoint machinery, with a
 separate durable delegation ledger. Replayed hires return the same child; scoped writes have

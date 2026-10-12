@@ -501,6 +501,11 @@ class Collective:
                 raise RunBusyError("The paused runner is still releasing its checkpoint")
         with run_lock(self.directory / ".run.lock"), self.graph() as (graph, workflow):
             state = graph.get_state(self.graph_config).values
+            if action == "reset_agent_model":
+                child = self.delegation.reset_child_model(str(fields.get("agent_id", "")))
+                self.export(state or {"status": self.manifest["status"], "tasks": {}})
+                self.emit("admin", action=action, agent_id=child["id"], model=child["model"])
+                return self.state(include_workers=True)
             if action == "revise_goal":
                 if state:
                     raise ValueError("Edit the goal and team before starting, or create a new run")

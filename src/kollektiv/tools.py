@@ -9,7 +9,7 @@ from urllib.parse import urlparse
 from uuid import uuid4
 
 import httpx
-from langchain_core.tools import BaseTool, InjectedToolCallId, tool
+from langchain_core.tools import BaseTool, InjectedToolArg, InjectedToolCallId, tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Settings
@@ -40,6 +40,9 @@ class AssembleContent(BaseModel):
 
 class HireContent(HireRequest):
     tool_call_id: Annotated[str, InjectedToolCallId]
+    # Keep old checkpoint arguments readable while omitting model selection from
+    # the native tool schema. The manager ignores this historical field at runtime.
+    model: Annotated[str | None, InjectedToolArg] = None
 
 
 def record(sender: str, content: str, **fields) -> dict:
@@ -209,6 +212,7 @@ class Toolkit:
             omit output and return reviewed text findings. The child
             runs independently; monitor_agents observes it and status changes arrive
             automatically in your inbox. Level-3 children cannot receive hire or fire.
+            Children inherit your configured model; model selection is not a hire option.
             """
             if not self.delegation:
                 raise ValueError("Dynamic skills require an active collective delegation manager")
