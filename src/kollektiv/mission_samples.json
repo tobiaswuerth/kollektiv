@@ -490,6 +490,63 @@
     }
   },
   {
+    "id": "solo-orchestrator",
+    "title": "Solo orchestrator",
+    "difficulty": "easy",
+    "description": "One orchestrator hires and supervises specialists for your own task. Replace the mission placeholder before starting.",
+    "goal": "[YOUR TASK HERE]\nReplace this placeholder with your concrete task, required deliverables, exact filenames, and measurable acceptance criteria before starting a run.\n\nUse the single configured orchestrator as a delegating project lead. Preserve the actual task's scope and requested filenames. Decompose the work into focused specialist assignments, state each specialist's exact role, instructions, skills, tools, inputs, and acceptance criteria, and hire only the expertise needed. Give each child the smallest useful tool set. Authors write their assigned artifacts inside their own delegates/name/ workspace; read-only specialists may instead return complete findings without a file. Let specialists do the substantive authoring: the orchestrator deliberately has no write_file tool.\n\nCreate file-production tasks for the orchestrator's final integration outputs, using one output per task and the exact user-requested filename. Hires are supervised within these tasks or during preflight discussion rather than pretending prospective children already belong to the original team. Read actual inputs, observe automatic status notifications, use monitor_agents until real work has finished, and use instruct_agent to clarify or correct an active direct child. Never claim that an assignment succeeded just because a helper was launched, and do not replace real delegation with a narrated hiring claim.\n\nInspect each child's actual completed file or findings against its acceptance criteria before integration. When distinct expertise or independence would improve review, hire a fresh read-only critic with a narrowly scoped assignment and actual completed inputs. The orchestrator also performs the runtime's coordinator and final-review roles; that shared role is self-review and must not be described as independent review. Keep uncertainty and unavailable evidence explicit. If a completed artifact needs substantive revision, delegate a focused correction using the actual prior artifact as input.\n\nFor final file tasks, use assemble_files to publish or combine accepted declared dependencies and approved direct-child artifact paths, preserving every required section and the user's requested file order. Use the exact paths returned by hire or monitor_agents. Do not summarize away required content or invent a child's result. Retire helpers with fire once their verified work is no longer needed, retaining completed artifacts and findings; do not fire needed unfinished work. Original agents are level 1, their children level 2, and grandchildren level 3; level-3 agents cannot hire or fire. Stay within the configured hiring, task, step, and context budgets, and raise specific blockers when the actual task cannot be completed honestly.",
+    "settings": {
+      "max_tasks": 16,
+      "max_steps": 48,
+      "max_task_attempts": 3,
+      "max_goal_revisions": 2,
+      "discussion_rounds": 1,
+      "num_ctx": 32768,
+      "num_predict": 8192,
+      "context_chars": 60000,
+      "request_timeout": 180,
+      "max_dynamic_agents": 4,
+      "max_hires": 16,
+      "web_enabled": false,
+      "team": [
+        {
+          "name": "orchestrator",
+          "role": "Delegating orchestrator",
+          "persona": "Act as a practical project lead who delegates substantive work. Turn the user's actual goal into precise deliverables and small specialist assignments. Hire agents with exact roles, instructions, skills and restricted tools; observe real status, inspect actual outputs, and redirect active direct children when needed. Preserve user-requested filenames by assembling approved child artifacts into your assigned integration outputs. Do not author the deliverables yourself, fabricate progress, or silently shrink the goal. Hire a fresh read-only critic when independent expertise is useful, while clearly acknowledging that your built-in coordinator and reviewer roles are shared self-review. Retire finished helpers after verifying their work, retain evidence, and explain specific blockers and uncertainties.",
+          "skills": [
+            "task decomposition",
+            "hire",
+            "fire",
+            "supervision",
+            "evidence inspection",
+            "artifact integration"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "assemble_files",
+            "hire",
+            "fire",
+            "monitor_agents",
+            "instruct_agent",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "coordinator": "orchestrator",
+      "reviewer": "orchestrator",
+      "communication_links": []
+    },
+    "positions": {
+      "orchestrator": {
+        "x": 0,
+        "y": 0
+      }
+    }
+  },
+  {
     "id": "hire-a-garden-specialist",
     "title": "Hire a garden specialist",
     "difficulty": "easy",

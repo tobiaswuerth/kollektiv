@@ -11,6 +11,7 @@ import {
   updateAgent,
 } from "./editorModel";
 import { canFitGraph, layoutTeam, pulseProgress } from "./model";
+import { agentDesignation, taskOwners } from "../selectors";
 
 const settings: Settings = {
   model: "test-model",
@@ -135,12 +136,79 @@ describe("configuration editing", () => {
       addCommunicationLink(result, { source: "worker", target: "worker" }),
     ).toBe(result);
   });
-  it("prevents a team from launching without a worker's actual write permission", () => {
+  it("requires an owner that can produce or delegate the requested work", () => {
     const draft = updateAgent(draftFrom(settings, "Mission"), "worker", {
       tools: [],
     });
     expect(configurationErrors(draft)).toContain(
-      "At least one agent other than the reviewer needs write_file access.",
+      "At least one agent needs write_file or assemble_files access to produce deliverables.",
+    );
+  });
+  it("supports one orchestrator sharing coordination and review through assembly and explicit hiring", () => {
+    const solo: Settings = {
+      ...settings,
+      coordinator: "orchestrator",
+      reviewer: "orchestrator",
+      team: [
+        {
+          ...settings.team[1],
+          name: "orchestrator",
+          role: "Collective orchestrator",
+          tools: [
+            "read_file",
+            "check_file",
+            "assemble_files",
+            "hire",
+            "monitor_agents",
+            "instruct_agent",
+          ],
+        },
+      ],
+    };
+    const draft = draftFrom(
+      solo,
+      "Produce a complete result through hired specialists",
+    );
+    expect(configurationErrors(draft)).toEqual([]);
+    expect(taskOwners(solo).map((agent) => agent.name)).toEqual([
+      "orchestrator",
+    ]);
+    expect(agentDesignation(solo, "orchestrator")).toBe(
+      "Coordinator & reviewer",
+    );
+    expect(removeAgent(draft, "orchestrator")).toBe(draft);
+    expect(Object.keys(layoutTeam(solo))).toEqual(["orchestrator"]);
+  });
+  it("supports two-agent teams and repairs shared designations after removing down to one", () => {
+    const two = removeAgent(draftFrom(settings, "A small mission"), "lead");
+    expect(two.settings.team).toHaveLength(2);
+    expect(configurationErrors(two)).toEqual([]);
+    const one = removeAgent(two, "review");
+    expect(one.settings.team).toHaveLength(1);
+    expect(one.settings.coordinator).toBe("worker");
+    expect(one.settings.reviewer).toBe("worker");
+    expect(configurationErrors(one)).toEqual([]);
+    expect(taskOwners(one.settings)).toEqual(one.settings.team);
+    expect(removeAgent(one, "worker")).toBe(one);
+  });
+  it("rejects empty collectives and hiring-only teams that cannot publish deliverables", () => {
+    const empty = draftFrom({ ...settings, team: [] });
+    expect(configurationErrors(empty)).toContain(
+      "Keep at least one agent in the collective.",
+    );
+    const bootstrap = draftFrom({
+      ...settings,
+      team: [
+        {
+          ...settings.team[1],
+          tools: ["hire", "monitor_agents", "instruct_agent"],
+        },
+      ],
+      coordinator: "worker",
+      reviewer: "worker",
+    });
+    expect(configurationErrors(bootstrap)).toContain(
+      "At least one agent needs write_file or assemble_files access to produce deliverables.",
     );
   });
   it("round trips configuration and keeps finite positions for current agents", () => {

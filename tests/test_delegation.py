@@ -590,3 +590,83 @@ def test_hire_permission_requires_explicit_monitor_and_intervention_helpers(tool
         Agent(name="complete", role="Manager", persona="Supervise carefully.", tools=exact).tools
         == exact
     )
+
+
+def test_assembly_accepts_reviewed_direct_child_and_preflight_results_after_retirement(ledger):
+    manager, settings, workspace, _ = ledger
+    settings.agent("builder").tools.append("assemble_files")
+
+    def execute(job, _control):
+        artifact = workspace.write(job["output"], "Complete accepted specialist evidence.")
+        return {"status": "completed", "artifact": artifact}
+
+    manager.start(execute)
+    manager.hire("builder", request(), "preflight", "discussion:1:builder")
+    child = wait_status(manager, "assistant", {"completed"})
+    assert manager.approved_child_inputs("builder", "final-deliverable") == [child["output"]]
+    toolkit = Toolkit(
+        settings,
+        workspace,
+        "builder",
+        "final.md",
+        lambda *_a, **_k: {},
+        delegation=manager,
+        task_id="final-deliverable",
+    )
+    assembly = next(tool for tool in toolkit.build() if tool.name == "assemble_files")
+    assembly.invoke({"paths": [child["output"]], "prefix": "# Verified report\n\n"})
+    assert (
+        workspace.read("final.md") == "# Verified report\n\nComplete accepted specialist evidence."
+    )
+    manager.fire("builder", "assistant", "Integrate approved result and release worker.")
+    assert manager.approved_child_inputs("builder", "another-deliverable") == [child["output"]]
+    workspace.write(child["output"], "Operator changed this after independent approval.")
+    assert manager.approved_child_inputs("builder", "another-deliverable") == []
+    with pytest.raises(ValueError, match="independently accepted"):
+        assembly.invoke({"paths": [child["output"]]})
+    assert workspace.read("final.md").startswith("# Verified report")
+
+
+def test_assembly_rejects_unfinished_failed_sibling_and_grandchild_results(ledger):
+    manager, settings, workspace, _ = ledger
+    settings.agent("builder").tools.append("assemble_files")
+    middle = manager.hire(
+        "builder",
+        request(
+            "middle", tools=["assemble_files", "hire", "fire", "monitor_agents", "instruct_agent"]
+        ),
+        "middle",
+    )
+    leaf = manager.hire("middle", request("leaf"), "leaf")
+    artifact = workspace.write(leaf["output"], "Finished-looking text without parent ownership.")
+    assert manager.approved_child_inputs("middle") == []
+    with manager._condition:
+        manager._transition(
+            manager.get("leaf"),
+            "completed",
+            artifact=artifact,
+            result={"status": "completed", "artifact": artifact},
+        )
+    assert manager.approved_child_inputs("middle") == [leaf["output"]]
+    assert manager.approved_child_inputs("builder") == []
+    assembly = next(
+        tool
+        for tool in Toolkit(
+            settings, workspace, "builder", "final.md", lambda *_a, **_k: {}, delegation=manager
+        ).build()
+        if tool.name == "assemble_files"
+    )
+    with pytest.raises(ValueError, match="independently accepted"):
+        assembly.invoke({"paths": [leaf["output"]]})
+    with manager._condition:
+        manager._transition(
+            manager.get("middle"),
+            "failed",
+            artifact=workspace.write(middle["output"], "Unaccepted middle output."),
+            result={"status": "failed"},
+        )
+    assert manager.approved_child_inputs("builder") == []
+    manager.fire("builder", "middle")
+    assert manager.approved_child_inputs("builder") == []
+    with pytest.raises(ValueError, match="independently accepted"):
+        assembly.invoke({"paths": [middle["output"]]})

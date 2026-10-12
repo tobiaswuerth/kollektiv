@@ -87,7 +87,10 @@ def test_every_easy_and_medium_mission_has_a_compact_configuration():
         if sample["difficulty"] not in ("easy", "medium"):
             continue
         settings = Settings.model_validate({**Settings().model_dump(), **sample["settings"]})
-        assert 3 <= len(settings.team) <= 4
+        if sample["id"] == "solo-orchestrator":
+            assert len(settings.team) == 1
+        else:
+            assert 3 <= len(settings.team) <= 4
         assert settings.communication_links is not None
         assert set(sample["positions"]) == {agent.name for agent in settings.team}
 
@@ -115,6 +118,60 @@ def test_static_easy_samples_keep_hiring_tools_disabled(sample_id):
     sample = ambitious_sample(sample_id)
     for agent in sample["settings"]["team"]:
         assert not {"hire", "fire", "monitor_agents", "instruct_agent"}.intersection(agent["tools"])
+
+
+def test_solo_orchestrator_is_a_generic_delegating_template_with_one_root():
+    sample = ambitious_sample("solo-orchestrator")
+    settings = Settings.model_validate({**Settings().model_dump(), **sample["settings"]})
+    assert sample["difficulty"] == "easy"
+    assert sample["title"] == "Solo orchestrator"
+    assert sample["goal"].startswith("[YOUR TASK HERE]")
+    assert "before starting a run" in sample["goal"]
+    assert "exact user-requested filename" in sample["goal"]
+    assert "self-review" in sample["goal"]
+    assert len(settings.team) == 1
+    assert settings.coordinator == settings.reviewer == "orchestrator"
+    orchestrator = settings.agent("orchestrator")
+    assert set(orchestrator.tools) == {
+        "list_files",
+        "read_file",
+        "check_file",
+        "assemble_files",
+        "hire",
+        "fire",
+        "monitor_agents",
+        "instruct_agent",
+        "send_message",
+        "share_note",
+    }
+    assert "write_file" not in orchestrator.tools
+    assert "delegates substantive work" in orchestrator.persona
+    assert settings.communication_links == []
+    assert sample["positions"] == {"orchestrator": {"x": 0, "y": 0}}
+    assert settings.max_steps >= 48
+    assert settings.num_ctx == 32_768
+    assert settings.num_predict == 8_192
+
+
+def test_solo_template_replaces_a_large_studio_and_preserves_local_runtime_choices():
+    studio = ambitious_sample("fifty-page-novel-studio")
+    solo = ambitious_sample("solo-orchestrator")
+    current = Settings.model_validate(
+        {
+            **Settings().model_dump(),
+            **studio["settings"],
+            "model": "my-model",
+            "base_url": "http://localhost:9999",
+            "max_concurrency": 2,
+        }
+    )
+    loaded = Settings.model_validate({**current.model_dump(), **solo["settings"]})
+    assert [agent.name for agent in loaded.team] == ["orchestrator"]
+    assert loaded.model == current.model and loaded.base_url == current.base_url
+    assert loaded.max_concurrency == current.max_concurrency
+    assert loaded.num_ctx < current.num_ctx
+    assert loaded.context_chars < current.context_chars
+    assert len(current.team) == 14
 
 
 def ambitious_sample(sample_id):
@@ -239,7 +296,9 @@ def test_ambitious_sample_team_and_layout_copies_are_isolated():
     assert original["positions"]["showrunner"]["x"] >= 0
 
 
-@pytest.mark.parametrize("sample_id", ["scientific-paper-lab", "fifty-page-novel-studio"])
+@pytest.mark.parametrize(
+    "sample_id", ["scientific-paper-lab", "fifty-page-novel-studio", "solo-orchestrator"]
+)
 def test_portable_presets_match_canonical_samples_and_support_editor_and_cli_import(sample_id):
     sample = ambitious_sample(sample_id)
     path = Path(__file__).resolve().parents[1] / "presets" / f"{sample_id}.json"

@@ -4,6 +4,7 @@ import { Modal } from "./ui";
 import { applyMissionSample } from "../missionSamples";
 import { MissionSamplePicker } from "./MissionSamplePicker";
 import type { GraphPosition, Settings } from "../types";
+import { taskOwners } from "../selectors";
 export type Action = { kind: string; fields?: Record<string, string> };
 export function ActionDialog({
   action,
@@ -229,15 +230,9 @@ export function ActionDialog({
               onChange={(e) => setOwner(e.target.value)}
             >
               <option value="">Select a worker</option>
-              {config.team
-                .filter(
-                  (a) =>
-                    a.tools.includes("write_file") &&
-                    a.name !== config.reviewer,
-                )
-                .map((a) => (
-                  <option key={a.name}>{a.name}</option>
-                ))}
+              {taskOwners(config).map((a) => (
+                <option key={a.name}>{a.name}</option>
+              ))}
             </select>
           </label>
         )}

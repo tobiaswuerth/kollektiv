@@ -1,4 +1,4 @@
-"""Regenerate portable ambitious presets from the canonical mission catalogue.
+"""Regenerate provided portable presets from the canonical mission catalogue.
 
 Run with ``uv run python scripts/export_mission_presets.py``. Output paths are
 anchored to this script's repository, so invoking it from another directory
@@ -12,7 +12,7 @@ from kollektiv import Settings
 from kollektiv.configurations import TeamConfiguration
 from kollektiv.missions import mission_samples
 
-PRESET_IDS = ("scientific-paper-lab", "fifty-page-novel-studio")
+PRESET_IDS = ("scientific-paper-lab", "fifty-page-novel-studio", "solo-orchestrator")
 REPOSITORY = Path(__file__).resolve().parents[1]
 
 

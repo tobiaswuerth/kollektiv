@@ -126,7 +126,7 @@ class Settings(BaseModel):
     max_dynamic_agents: int = Field(default=8, ge=1, le=32)
     max_hires: int = Field(default=48, ge=1, le=200)
     web_enabled: bool = False
-    team: list[Agent] = Field(default_factory=default_team, min_length=3)
+    team: list[Agent] = Field(default_factory=default_team, min_length=1)
     coordinator: str = "coordinator"
     reviewer: str = "reviewer"
     communication_links: list[CommunicationLink] | None = None
@@ -134,14 +134,19 @@ class Settings(BaseModel):
     @model_validator(mode="after")
     def validate_team(self) -> "Settings":
         names = [a.name for a in self.team]
+        if len(names) == 1:
+            if "coordinator" not in self.model_fields_set:
+                self.coordinator = names[0]
+            if "reviewer" not in self.model_fields_set:
+                self.reviewer = names[0]
         if len(names) != len(set(names)):
             raise ValueError("Agent names must be unique")
         if self.coordinator not in names or self.reviewer not in names:
             raise ValueError("coordinator and reviewer must name members of the team")
-        if self.coordinator == self.reviewer:
-            raise ValueError("The coordinator and reviewer must be different agents")
-        if not any("write_file" in a.tools and a.name != self.reviewer for a in self.team):
-            raise ValueError("The team needs a worker with write_file access")
+        if not self.task_owners():
+            raise ValueError(
+                "The team needs an agent with write_file or assemble_files access to produce deliverables"
+            )
         if self.communication_links is not None:
             pairs = [(link.source, link.target) for link in self.communication_links]
             if len(pairs) != len(set(pairs)):
@@ -154,6 +159,15 @@ class Settings(BaseModel):
 
     def agent(self, name: str) -> Agent:
         return next(a for a in self.team if a.name == name)
+
+    def task_owners(self) -> list[str]:
+        """Publishers may coordinate and review when the roles intentionally coincide."""
+        return [
+            agent.name
+            for agent in self.team
+            if {"write_file", "assemble_files"} & set(agent.tools)
+            and (agent.name != self.reviewer or self.coordinator == self.reviewer)
+        ]
 
     def allowed_recipients(self, sender: str) -> list[str]:
         """Optional messages follow directed paths and the sender's tool permissions."""

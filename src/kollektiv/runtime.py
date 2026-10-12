@@ -558,13 +558,11 @@ class Collective:
                 reason = f"Operator requested {action} for {task_id}. Preserve requirements and prior feedback."
                 if action == "reassign_task":
                     owner = fields.get("owner")
-                    valid = {
-                        a.name
-                        for a in self.settings.team
-                        if "write_file" in a.tools and a.name != self.settings.reviewer
-                    }
+                    valid = set(self.settings.task_owners())
                     if owner not in valid:
-                        raise ValueError(f"Choose a worker with write_file access: {sorted(valid)}")
+                        raise ValueError(
+                            f"Choose a writer or publisher with write_file or assemble_files access: {sorted(valid)}"
+                        )
                     tasks[task_id]["owner"] = owner
                 if action == "replace_artifact":
                     self.workspace.write(tasks[task_id]["output"], fields.get("content", ""))

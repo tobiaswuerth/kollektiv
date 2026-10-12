@@ -169,4 +169,42 @@ describe("mission samples", () => {
     );
     expect(Object.keys(sample.positions!)).toHaveLength(3);
   });
+  it("loads a generic one-orchestrator template without authoring tools or studio carryover", () => {
+    const studio = bundledMissionSamples.find(
+      (sample) => sample.id === "fifty-page-novel-studio",
+    )!;
+    const solo = bundledMissionSamples.find(
+      (sample) => sample.id === "solo-orchestrator",
+    )!;
+    const local = {
+      model: "local-model",
+      base_url: "http://localhost:9999",
+      max_concurrency: 2,
+    } as Settings;
+    const large = applyMissionSample(studio, local).settings;
+    const loaded = applyMissionSample(solo, large);
+    expect(loaded.goal).toMatch(/^\[YOUR TASK HERE\]/);
+    expect(loaded.settings.team).toHaveLength(1);
+    expect(loaded.settings.coordinator).toBe("orchestrator");
+    expect(loaded.settings.reviewer).toBe("orchestrator");
+    expect(loaded.settings.team[0].tools).not.toContain("write_file");
+    expect(loaded.settings.team[0].tools).toEqual(
+      expect.arrayContaining([
+        "hire",
+        "fire",
+        "monitor_agents",
+        "instruct_agent",
+        "assemble_files",
+      ]),
+    );
+    expect(loaded.settings.communication_links).toEqual([]);
+    expect(loaded.positions).toEqual({ orchestrator: { x: 0, y: 0 } });
+    expect(loaded.settings.model).toBe(local.model);
+    expect(loaded.settings.base_url).toBe(local.base_url);
+    expect(loaded.settings.max_concurrency).toBe(local.max_concurrency);
+    expect(loaded.settings.num_ctx).toBe(32768);
+    expect(loaded.settings.num_predict).toBe(8192);
+    expect(loaded.settings.context_chars).toBe(60000);
+    expect(large.team).toHaveLength(14);
+  });
 });

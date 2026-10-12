@@ -220,11 +220,7 @@ class Workflow:
     def validate_plan(self, plan: Plan) -> None:
         if len(plan.tasks) > self.settings.max_tasks:
             raise ValueError(f"Plan exceeds max_tasks={self.settings.max_tasks}")
-        owners = {
-            a.name
-            for a in self.settings.team
-            if "write_file" in a.tools and a.name != self.settings.reviewer
-        }
+        owners = set(self.settings.task_owners())
         if any(t.owner not in owners for t in plan.tasks):
             raise ValueError(f"Task owners must be one of the workers: {sorted(owners)}")
         if any(
@@ -244,7 +240,10 @@ class Workflow:
             "DO NOT create tasks for reviews, approvals, signals or final validation reports. "
             "Plan actual user deliverables and only indispensable intermediate documents. "
             "Use ordinary file extensions such as .md, .txt, .py, .html, .js, .json. "
-            "Assign tasks to workers with write_file access based on their skills. "
+            "Assign tasks to eligible authors or publishers with write_file or assemble_files access. "
+            "An orchestrator with assemble_files can own integration tasks, hire specialist authors, "
+            "and publish their approved direct-child artifacts into each assigned output. "
+            "Coordinator and reviewer may be the same configured agent; do not invent extra team members. "
             "Use unique short task IDs and unique relative output paths. "
             "Preserve exact filenames requested by the user. "
             "Dependencies must contain task IDs, not filenames, and form a DAG. "
@@ -284,10 +283,13 @@ class Workflow:
         )
         writing = (
             "Read the dependency files listed in the task before writing. "
-            "Use write_file to produce the complete assigned artifact, including all content. "
+            "Use only your available tools. If write_file is available, use it to produce the "
+            "complete assigned artifact, including all content. "
             "write_file takes only content; its output path is already bound to your task. "
-            "If assemble_files is available, use it to join approved dependency files in the "
-            "required order for a long manuscript or integration artifact. It writes your "
+            "If assemble_files is available, use it to join approved dependency files or verified "
+            "completed direct-child outputs in the required order. An orchestrator without "
+            "write_file hires authors, reads their actual outputs, and publishes them with "
+            "assemble_files. It writes your "
             "assigned output directly without making you repeat the entire text. "
             "Do not replace a successfully assembled artifact with a shortened write_file call. "
             "Read any existing version before making corrections. Use check_file when helpful. "
@@ -322,6 +324,8 @@ class Workflow:
 
     def act(self, state: WorkerState) -> dict:
         task = state["task"]
+        revision = self.delegation.snapshot()["revision"] if self.delegation else 0
+        observed_children = self.child_statuses(task["owner"])
         toolkit = self.toolkit(
             task["owner"],
             task["output"],
@@ -338,7 +342,8 @@ class Workflow:
             "reply": messages_to_dict([reply])[0],
             "steps": state.get("steps", 0) + 1,
             "finished": not (reply.tool_calls or reply.invalid_tool_calls),
-            "delegation_revision": self.delegation.snapshot()["revision"] if self.delegation else 0,
+            "delegation_revision": revision,
+            "observed_children": observed_children,
             "events": self.event(
                 "worker_step",
                 agent=task["owner"],
@@ -350,10 +355,23 @@ class Workflow:
 
     def after_act(self, state: WorkerState) -> str:
         if state["finished"]:
-            if self.has_children_working(state["task"]["owner"]):
+            owner = state["task"]["owner"]
+            changed = state.get("observed_children", {}) != self.child_statuses(owner)
+            if self.has_children_working(owner) or (
+                changed and state["steps"] < self.settings.max_steps
+            ):
                 return "await_children"
             return "review"
         return "tools"
+
+    def child_statuses(self, agent: str) -> dict[str, str]:
+        if not self.delegation:
+            return {}
+        return {
+            child["name"]: child["status"]
+            for child in self.delegation.snapshot()["agents"].values()
+            if child["parent"] == agent
+        }
 
     def has_children_working(self, agent: str) -> bool:
         if not self.delegation:
@@ -384,6 +402,8 @@ class Workflow:
 
     def staff_act(self, state: StaffingState) -> dict:
         name = state["agent_name"]
+        revision = self.delegation.snapshot()["revision"]
+        observed_children = self.child_statuses(name)
         toolkit = self.toolkit(name, task_id=f"discussion:{state['discussion_round']}:{name}")
         prompt = (
             f"SHARED GOAL:\n{state['goal']}\n{self.team_context(state, name)}\n"
@@ -411,7 +431,8 @@ class Workflow:
             "reply": messages_to_dict([reply])[0],
             "steps": state.get("steps", 0) + 1,
             "finished": not (reply.tool_calls or reply.invalid_tool_calls),
-            "delegation_revision": self.delegation.snapshot()["revision"],
+            "delegation_revision": revision,
+            "observed_children": observed_children,
         }
 
     def staff_tools(self, state: StaffingState) -> dict:
@@ -435,7 +456,13 @@ class Workflow:
 
     def after_staff(self, state: StaffingState) -> str:
         if state.get("finished") or state.get("steps", 0) >= self.settings.max_steps:
-            return "wait" if self.has_children_working(state["agent_name"]) else "contribute"
+            changed = state.get("observed_children", {}) != self.child_statuses(state["agent_name"])
+            return (
+                "wait"
+                if self.has_children_working(state["agent_name"])
+                or (changed and state.get("steps", 0) < self.settings.max_steps)
+                else "contribute"
+            )
         return "tools"
 
     def after_staff_tools(self, state: StaffingState) -> str:
@@ -599,8 +626,14 @@ class Workflow:
                 f"ACTUAL FILES:\n{self.workspace.context(paths, self.settings.context_chars)}\n"
                 f"DETERMINISTIC CHECKS:\n{json_text(info)}\n"
                 f"PROJECT GOAL FOR CONTEXT:\n{state['goal']}\n"
-                "Independently inspect the assigned output against EACH acceptance criterion, "
-                "its dependency inputs, and the goal. Approve only a complete, usable deliverable. "
+                + (
+                    "The reviewer and author are the same configured agent: perform a fresh-context "
+                    "self-review without claiming an independent reviewer. Inspect the assigned output "
+                    "against EACH acceptance criterion, "
+                    if task["owner"] == self.settings.reviewer
+                    else "Independently inspect the assigned output against EACH acceptance criterion, "
+                )
+                + "its dependency inputs, and the goal. Approve only a complete, usable deliverable. "
                 "Reject placeholders, missing required sections, contradictions and unmet word counts. "
                 "Code syntax checks do not prove runtime correctness; do not claim code execution. "
                 "If rejecting, explain concrete corrections for the owner. "

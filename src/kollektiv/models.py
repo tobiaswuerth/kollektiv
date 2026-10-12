@@ -32,7 +32,9 @@ class Task(Schema):
     title: str = Field(min_length=1)
     phase: str = Field(min_length=1)
     description: str = Field(min_length=1)
-    owner: str = Field(description="Exact name of an agent with write_file access")
+    owner: str = Field(
+        description="Exact name of an eligible author or publisher with write_file or assemble_files access"
+    )
     output: str = Field(description="One relative deliverable path, e.g. chapters/chapter_1.md")
     dependencies: list[str] = Field(default_factory=list, description="IDs of prerequisite tasks")
     acceptance_criteria: list[str] = Field(min_length=1)
@@ -142,6 +144,7 @@ class StaffingState(DiscussionState, total=False):
     finished: bool
     delegation_revision: int
     delegation_changed: bool
+    observed_children: dict[str, str]
     events: Annotated[dict[str, dict], merge_records]
 
 
@@ -170,3 +173,4 @@ class WorkerState(WorkerOutput, total=False):
     review: dict
     delegation_revision: int
     delegation_changed: bool
+    observed_children: dict[str, str]

@@ -312,7 +312,8 @@ export function TeamEditor({ close }: { close: () => void }) {
           {draft.settings.communication_links?.length ?? "All"} paths
         </button>
         <span className="editor-agent-count">
-          {draft.settings.team.length} agents
+          {draft.settings.team.length} agent
+          {draft.settings.team.length === 1 ? "" : "s"}
         </span>
         <button
           type="button"
@@ -408,7 +409,10 @@ export function TeamEditor({ close }: { close: () => void }) {
             update={update}
             remove={() => {
               change(removeAgent(draft, selected));
-              setSelected("");
+              const remaining = draft.settings.team.filter(
+                (entry) => entry.name !== selected,
+              );
+              setSelected(remaining.length === 1 ? remaining[0].name : "");
               resetFocus();
             }}
           />

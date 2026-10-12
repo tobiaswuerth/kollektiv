@@ -21,9 +21,10 @@ export function layoutEditorTeam(
       y: (Math.floor(index / columns) + 1) * height,
     };
   });
-  positions[settings.reviewer] = {
-    x: ((columns - 1) * width) / 2,
-    y: (rows + 1) * height,
-  };
+  if (settings.reviewer !== settings.coordinator)
+    positions[settings.reviewer] = {
+      x: ((columns - 1) * width) / 2,
+      y: (rows + 1) * height,
+    };
   return positions;
 }

@@ -1,5 +1,12 @@
 import { useRoom } from "./store";
-import type { Agent, RuntimeEvent, Snapshot, Specialist, Task } from "./types";
+import type {
+  Agent,
+  RuntimeEvent,
+  Settings,
+  Snapshot,
+  Specialist,
+  Task,
+} from "./types";
 export const tones = [
   "#8b8fff",
   "#43c5e5",
@@ -12,6 +19,23 @@ export const tones = [
 export const time = (at?: string) =>
   at ? new Date(at).toLocaleTimeString([], { hour12: false }) : "";
 export const nice = (text?: string) => (text || "").replaceAll("_", " ");
+export function taskOwners(settings: Settings): Agent[] {
+  return settings.team.filter(
+    (agent) =>
+      (agent.name !== settings.reviewer ||
+        settings.coordinator === settings.reviewer) &&
+      agent.tools.some((tool) =>
+        ["write_file", "assemble_files"].includes(tool),
+      ),
+  );
+}
+export function agentDesignation(settings: Settings, name: string) {
+  if (name === settings.coordinator && name === settings.reviewer)
+    return "Coordinator & reviewer";
+  if (name === settings.coordinator) return "Coordinator";
+  if (name === settings.reviewer) return "Reviewer";
+  return "";
+}
 export function specialists(snapshot: Snapshot | null): Specialist[] {
   return Object.values(snapshot?.delegation?.agents || {});
 }

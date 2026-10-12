@@ -43,6 +43,12 @@ export function AgentProperties({
           type="button"
           className="icon-button danger"
           onClick={remove}
+          disabled={draft.settings.team.length === 1}
+          title={
+            draft.settings.team.length === 1
+              ? "Keep at least one agent in the collective"
+              : "Remove this agent"
+          }
           aria-label="Remove selected agent"
         >
           <Trash2 size={15} />

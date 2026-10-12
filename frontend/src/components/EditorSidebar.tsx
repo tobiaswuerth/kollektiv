@@ -108,7 +108,10 @@ function TeamRoster({
               <strong>{agent.name}</strong>
               <small>{agent.role}</small>
             </span>
-            {agent.name === draft.settings.coordinator ? (
+            {agent.name === draft.settings.coordinator &&
+            agent.name === draft.settings.reviewer ? (
+              <span className="editor-roster-designation">Lead + review</span>
+            ) : agent.name === draft.settings.coordinator ? (
               <span className="editor-roster-designation">Lead</span>
             ) : agent.name === draft.settings.reviewer ? (
               <span className="editor-roster-designation">Review</span>
@@ -138,21 +141,33 @@ function RuntimeSettings({
         <h3>Execution settings</h3>
         <p>Control the team leads, local model, and budgets for this draft.</p>
       </div>
-      {(["coordinator", "reviewer"] as const).map((field) => (
-        <label key={field}>
-          {field === "coordinator" ? "Coordinator" : "Reviewer"}
-          <select
-            value={draft.settings[field]}
-            onChange={(event) => update({ [field]: event.target.value })}
-          >
-            {draft.settings.team.map((entry) => (
-              <option key={entry.name} value={entry.name}>
-                {entry.name}
-              </option>
-            ))}
-          </select>
+      {draft.settings.team.length === 1 ? (
+        <label>
+          Planning & review
+          <input value={draft.settings.team[0].name} readOnly />
         </label>
-      ))}
+      ) : (
+        (["coordinator", "reviewer"] as const).map((field) => (
+          <label key={field}>
+            {field === "coordinator" ? "Coordinator" : "Reviewer"}
+            <select
+              value={draft.settings[field]}
+              onChange={(event) => update({ [field]: event.target.value })}
+            >
+              {draft.settings.team.map((entry) => (
+                <option key={entry.name} value={entry.name}>
+                  {entry.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ))
+      )}
+      <p className="editor-panel-note">
+        {draft.settings.coordinator === draft.settings.reviewer
+          ? "One agent handles both planning and review."
+          : "Planning and review are assigned to separate agents."}
+      </p>
       <label>
         Default model
         <input

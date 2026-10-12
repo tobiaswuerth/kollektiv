@@ -25,4 +25,19 @@ describe("large-team editor layout", () => {
       positions[studio.settings!.team![4].name].y,
     );
   });
+  it("keeps shared coordination and review in one top-level node for a large team", () => {
+    const studio = bundledMissionSamples.find(
+      (sample) => sample.id === "fifty-page-novel-studio",
+    )!;
+    const settings = {
+      ...studio.settings,
+      reviewer: studio.settings!.coordinator,
+    } as Settings;
+    const positions = layoutEditorTeam(settings);
+    expect(Object.keys(positions)).toHaveLength(settings.team.length);
+    expect(positions[settings.coordinator].y).toBe(0);
+    expect(
+      new Set(Object.values(positions).map(({ x, y }) => `${x}:${y}`)).size,
+    ).toBe(settings.team.length);
+  });
 });

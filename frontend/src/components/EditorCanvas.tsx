@@ -20,7 +20,7 @@ import {
   ShieldCheck,
   Trash2,
 } from "lucide-react";
-import { tones } from "../selectors";
+import { agentDesignation, tones } from "../selectors";
 import type { Agent, TeamConfiguration } from "../types";
 import { addCommunicationLink, removeAgent } from "../graph/editorModel";
 import { GraphViewport } from "../graph/GraphViewport";
@@ -32,12 +32,11 @@ type DraftNode = Node<
   "draftAgent"
 >;
 const DraftAgent = memo(({ data, selected }: NodeProps<DraftNode>) => {
-  const Icon =
-    data.designation === "Coordinator"
-      ? Network
-      : data.designation === "Reviewer"
-        ? ShieldCheck
-        : Code2;
+  const Icon = data.designation.startsWith("Coordinator")
+    ? Network
+    : data.designation === "Reviewer"
+      ? ShieldCheck
+      : Code2;
   return (
     <div
       className={`draft-agent ${selected ? "selected" : ""}`}
@@ -165,12 +164,7 @@ function Canvas({
     data: {
       agent,
       tone: tones[index % tones.length],
-      designation:
-        agent.name === draft.settings.coordinator
-          ? "Coordinator"
-          : agent.name === draft.settings.reviewer
-            ? "Reviewer"
-            : "",
+      designation: agentDesignation(draft.settings, agent.name),
     },
   }));
   const edges = (draft.settings.communication_links || []).map((link) => ({

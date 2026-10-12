@@ -9,7 +9,7 @@ from uuid import uuid4
 from langchain_core.messages import AIMessage, ToolMessage
 from test_collective import ScriptedModels, task
 
-from kollektiv.models import Plan
+from kollektiv.models import Contribution, Plan
 from kollektiv.webapp import ControlRoomServer, RunManager
 
 
@@ -23,11 +23,29 @@ class DemoModels(ScriptedModels):
     def structured(self, *args, **kwargs):
         time.sleep(self.delay)
         agent, schema, prompt = args[:3]
+        if schema is Contribution and "SOLO_BROWSER" in prompt:
+            contribution = Contribution(
+                findings="Hire an author, independently inspect its actual contribution, then assemble the accepted file intact."
+            )
+            validate = args[3] if len(args) > 3 else kwargs.get("validate")
+            if validate:
+                validate(contribution)
+            return contribution
         if schema is Plan and "DELEGATION_BROWSER" in prompt:
             plan = Plan(
                 summary="Hire a specialist family, supervise it, then write the project summary",
                 success_criteria=["Complete project summary"],
                 tasks=[task("summary", "summary.md", owner="builder")],
+            )
+            validate = args[3] if len(args) > 3 else kwargs.get("validate")
+            if validate:
+                validate(plan)
+            return plan
+        if schema is Plan and "SOLO_BROWSER" in prompt:
+            plan = Plan(
+                summary="Hire a writer, supervise the contribution, then publish its complete text",
+                success_criteria=["Complete assembled project result"],
+                tasks=[task("solo", "solo_result.md", owner="orchestrator")],
             )
             validate = args[3] if len(args) > 3 else kwargs.get("validate")
             if validate:
@@ -43,6 +61,8 @@ class DemoModels(ScriptedModels):
             return AIMessage(content="Discuss the approach first; hire only during artifact work.")
         if "DELEGATION_BROWSER" in prompt:
             return self.delegation_act(agent, messages, tools)
+        if "SOLO_BROWSER" in prompt:
+            return self.solo_act(agent, messages, tools)
         return super().act(*args, **kwargs)
 
     @staticmethod
@@ -133,6 +153,50 @@ class DemoModels(ScriptedModels):
                 )
         time.sleep(0.2)
         return self.call("monitor_agents", {"wait_seconds": 0.25})
+
+    def solo_act(self, agent, messages, tools):
+        """A manager with assembly access hires the author instead of authoring the file."""
+        results = [
+            message
+            for message in messages[2:]
+            if isinstance(message, ToolMessage) and message.status != "error"
+        ]
+        if agent == "solo_writer":
+            if any(message.name == "write_file" for message in results):
+                return AIMessage(content="The complete specialist note is ready for review.")
+            return self.call(
+                "write_file",
+                {
+                    "content": "# Specialist note\n\nCOMPLETE\nThe hired author produced this entire note for the orchestrator to publish unchanged."
+                },
+            )
+        assert agent == "orchestrator"
+        assert "write_file" not in {tool.name for tool in tools}
+        if not any(message.name == "hire" for message in results):
+            return self.call(
+                "hire",
+                {
+                    "name": "solo_writer",
+                    "role": "Focused author",
+                    "instructions": "Write one complete useful note and report to your parent.",
+                    "skills": ["writing"],
+                    "tools": ["read_file", "write_file", "check_file", "send_message"],
+                    "assignment": "Produce the complete requested publication content.",
+                    "output": "note.md",
+                    "acceptance_criteria": ["Contains COMPLETE usable content"],
+                },
+            )
+        if any(message.name == "assemble_files" for message in results):
+            return AIMessage(
+                content="The full accepted specialist contribution has been published unchanged."
+            )
+        monitors = [
+            json.loads(message.content) for message in results if message.name == "monitor_agents"
+        ]
+        writer = monitors[-1].get("children", {}).get("solo_writer", {}) if monitors else {}
+        if writer.get("status") == "completed":
+            return self.call("assemble_files", {"paths": [writer["output"]]})
+        return self.call("monitor_agents", {"wait_seconds": 0.1})
 
 
 if __name__ == "__main__":

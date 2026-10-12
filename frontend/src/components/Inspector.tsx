@@ -466,7 +466,9 @@ export function Inspector({
               <section>
                 <h4>
                   <CheckCheck size={13} />
-                  INDEPENDENT REVIEW
+                  {config?.coordinator === config?.reviewer
+                    ? "REVIEW"
+                    : "INDEPENDENT REVIEW"}
                 </h4>
                 <p>{task.feedback}</p>
               </section>

@@ -118,7 +118,8 @@ class Toolkit:
         def assemble_files(paths: list[str], separator: str = "\n\n", prefix: str = "") -> str:
             """Join approved dependency files into your assigned artifact without rewriting them.
 
-            Specify dependency paths in manuscript order. Optional prefix and separator are
+            Specify declared dependency paths or your independently accepted direct-child
+            artifact paths in manuscript order. Optional prefix and separator are
             inserted verbatim. Returns checksums and counts, not the full assembled text.
             """
             if not self.output:
@@ -126,8 +127,14 @@ class Toolkit:
             sources = [relative_path(path) for path in paths]
             if len({path.casefold() for path in sources}) != len(sources):
                 raise ValueError("Assembly sources must be unique")
-            if any(path not in self.input_files for path in sources):
-                raise ValueError("Assembly sources must be assigned task dependency files")
+            approved = set(self.input_files)
+            if self.delegation:
+                approved.update(self.delegation.approved_child_inputs(self.agent, self.task_id))
+            if any(path not in approved for path in sources):
+                raise ValueError(
+                    "Assembly sources must be assigned task dependency files or independently "
+                    "accepted artifacts from your direct children"
+                )
             output_path = self.workspace.path(self.output)
             if any(
                 path.casefold() == relative_path(self.output).casefold()
@@ -302,13 +309,23 @@ class Toolkit:
             allowed = actor.tools
         else:
             level = 1
+        can_assemble = self.output is not None and (
+            self.input_files
+            or (
+                self.delegation
+                and (
+                    "hire" in allowed
+                    or self.delegation.approved_child_inputs(self.agent, self.task_id)
+                )
+            )
+        )
         return [
             t
             for t in candidates
             if t.name in allowed
             and (self.settings.web_enabled or not t.name.startswith("web_"))
             and (self.output is not None or t.name != "write_file")
-            and (t.name != "assemble_files" or (self.output is not None and self.input_files))
+            and (t.name != "assemble_files" or can_assemble)
             and (t.name not in ("hire", "fire") or level < 3)
             and (
                 self.delegation is not None

@@ -6,6 +6,7 @@ import type {
   TeamConfiguration,
 } from "../types";
 import { layoutTeam } from "./model";
+import { taskOwners } from "../selectors";
 
 export function draftFrom(
   settings: Settings,
@@ -96,6 +97,7 @@ export function removeAgent(
   name: string,
 ): TeamConfiguration {
   const team = draft.settings.team.filter((agent) => agent.name !== name);
+  if (!team.length || team.length === draft.settings.team.length) return draft;
   const positions = { ...draft.positions };
   delete positions[name];
   const coordinator =
@@ -104,7 +106,9 @@ export function removeAgent(
       : draft.settings.coordinator;
   const reviewer =
     draft.settings.reviewer === name
-      ? team.find((agent) => agent.name !== coordinator)?.name || ""
+      ? draft.settings.coordinator === draft.settings.reviewer
+        ? coordinator
+        : team.find((agent) => agent.name !== coordinator)?.name || coordinator
       : draft.settings.reviewer;
   return {
     ...draft,
@@ -154,10 +158,8 @@ export function configurationErrors(
   if (!draft.name.trim()) errors.push("Give the configuration a name.");
   if (requireGoal && !draft.goal.trim()) errors.push("Enter a mission goal.");
   const { team, coordinator, reviewer, communication_links } = draft.settings;
-  if (team.length < 3)
-    errors.push(
-      "Use at least three agents: coordinator, worker, and reviewer.",
-    );
+  if (team.length < 1)
+    errors.push("Keep at least one agent in the collective.");
   const names = team.map((agent) => agent.name);
   if (new Set(names).size !== names.length)
     errors.push("Agent names must be unique.");
@@ -183,15 +185,9 @@ export function configurationErrors(
   });
   if (!names.includes(coordinator) || !names.includes(reviewer))
     errors.push("Choose a coordinator and reviewer from the team.");
-  if (coordinator === reviewer)
-    errors.push("Coordinator and reviewer must be different agents.");
-  if (
-    !team.some(
-      (agent) => agent.name !== reviewer && agent.tools.includes("write_file"),
-    )
-  )
+  if (!taskOwners(draft.settings).length)
     errors.push(
-      "At least one agent other than the reviewer needs write_file access.",
+      "At least one agent needs write_file or assemble_files access to produce deliverables.",
     );
   if (
     communication_links?.some(

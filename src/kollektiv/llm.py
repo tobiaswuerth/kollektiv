@@ -77,11 +77,7 @@ class Models:
         wire_schema = schema.model_json_schema()
         definitions = wire_schema.get("$defs", {})
         if "Task" in definitions:
-            definitions["Task"]["properties"]["owner"]["enum"] = [
-                a.name
-                for a in self.settings.team
-                if "write_file" in a.tools and a.name != self.settings.reviewer
-            ]
+            definitions["Task"]["properties"]["owner"]["enum"] = self.settings.task_owners()
         if "MessageDraft" in definitions:
             definitions["MessageDraft"]["properties"]["recipient"]["enum"] = [
                 a.name for a in self.settings.team

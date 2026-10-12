@@ -25,6 +25,7 @@ import {
 import { useRoom } from "../store";
 import {
   activeTeam,
+  agentDesignation,
   actor,
   nice,
   specialistMode,
@@ -54,18 +55,23 @@ type Person = Node<
     pulse?: RuntimeEvent;
     specialist?: Specialist;
     children: number;
+    designation: string;
   },
   "person"
 >;
 const PersonCard = memo(({ data, selected }: NodeProps<Person>) => {
   const select = useRoom((room) => room.select);
-  const Icon = /review/.test(data.agent.role.toLowerCase())
-    ? ShieldCheck
-    : /research|architect/.test(data.agent.role.toLowerCase())
-      ? Search
-      : /coordinat/.test(data.agent.role.toLowerCase())
-        ? Network
-        : Code2;
+  const Icon = data.designation.startsWith("Coordinator")
+    ? Network
+    : data.designation === "Reviewer"
+      ? ShieldCheck
+      : /review/.test(data.agent.role.toLowerCase())
+        ? ShieldCheck
+        : /research|architect/.test(data.agent.role.toLowerCase())
+          ? Search
+          : /coordinat/.test(data.agent.role.toLowerCase())
+            ? Network
+            : Code2;
   return (
     <div
       className={`person-card ${data.mode} ${selected ? "selected" : ""} ${data.pulse ? "event-pulse" : ""}`}
@@ -93,6 +99,12 @@ const PersonCard = memo(({ data, selected }: NodeProps<Person>) => {
         <Zap size={12} />
         {data.activity}
       </div>
+      {data.designation === "Coordinator & reviewer" && (
+        <div className="person-hierarchy">
+          <Network size={11} />
+          <span>{data.designation}</span>
+        </div>
+      )}
       {(data.specialist || data.children > 0) && (
         <div className="person-hierarchy">
           <GitBranch size={11} />
@@ -262,6 +274,7 @@ function GraphContent() {
         children: jobs.filter(
           (child) => child.parent === agent.name && child.status !== "retired",
         ).length,
+        designation: config ? agentDesignation(config, agent.name) : "",
       },
     };
   });

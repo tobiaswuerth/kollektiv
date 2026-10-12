@@ -341,6 +341,7 @@ class DelegationManager:
             if (
                 "assemble_files" in request.tools
                 and "write_file" not in request.tools
+                and "hire" not in request.tools
                 and not request.input_files
             ):
                 raise ValueError("An assembly-only worker needs dependency input_files")
@@ -734,6 +735,35 @@ class DelegationManager:
             for job in self.snapshot()["agents"].values()
             if job["parent"] == parent and job["status"] in ACTIVE
         ]
+
+    def approved_child_inputs(self, parent: str, task_id: str | None = None) -> list[str]:
+        """Verified artifacts produced by the caller's own successful direct hires.
+
+        Direct ownership is run-scoped, rather than task-scoped: an orchestrator
+        may hire a specialist during discussion and integrate its accepted output
+        after planning. Retirement retains approval only for a completed result.
+        Every lookup verifies current bytes against independent review's receipt.
+        """
+        approved = []
+        with self._condition:
+            for job in self._jobs().values():
+                if (
+                    job["parent"] != parent
+                    or job["status"] not in {"completed", "retired"}
+                    or not job.get("output")
+                    or job.get("result", {}).get("status") != "completed"
+                ):
+                    continue
+                receipt = job.get("result", {}).get("artifact")
+                if not receipt or receipt.get("path") != job["output"]:
+                    continue
+                try:
+                    current = self.workspace.inspect(job["output"])
+                except (OSError, ValueError):
+                    continue
+                if not current["problems"] and current["sha256"] == receipt.get("sha256"):
+                    approved.append(job["output"])
+        return approved
 
     def raise_if_interrupted(self, parent: str) -> None:
         with self._condition:

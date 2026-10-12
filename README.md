@@ -25,8 +25,9 @@ uv run kollektiv serve --open
 If Ollama is not already running, start `ollama serve` in a separate terminal.
 No cloud credentials are required. Open `http://127.0.0.1:8765` for the agent graph control room.
 To try a mission, choose **New collective → Mission sample** in the UI. Easy, medium and elaborate
-samples load editable goals, task budgets and communication graphs. The easy samples start with
-three agents, and the medium samples use four. They replace a previously loaded studio team with
+samples load editable goals, task budgets and communication graphs. The task-specific easy samples
+start with three agents, medium samples use four, and **Solo orchestrator** starts with one.
+They replace a previously loaded studio team with
 a compact configuration. A small hiring demo recruits one temporary helper; two advanced studios
 provide larger specialized teams.
 From the terminal, use `uv run kollektiv run "Write a short poem about a robot in poem.md"`.
@@ -174,6 +175,17 @@ Choose **Hire a garden specialist** under easy mission samples to try them with 
 starting team. The writer hires one helper, monitors its real results, integrates them into the
 garden plan and retires the helper. Other small samples keep a static three- or four-agent team.
 
+For a team built entirely as it works, choose **Solo orchestrator**. Replace `[YOUR TASK HERE]` in
+the goal with your actual task and required deliverables. Its generic role instructions tell the
+single orchestrator to decompose the goal, hire specialists with exact personas and permissions,
+monitor real progress, redirect work when needed and fire helpers once their work is accepted.
+The orchestrator delegates authoring and uses `assemble_files` to publish verified direct-child
+outputs into its own assigned deliverables, including results produced before planning. It cannot
+assemble unfinished, unrelated or changed child outputs. Its coordinator and reviewer roles are
+shared: checks of its own integrations are fresh-context self-reviews, and it can hire a separate
+read-only critic when independent expertise is useful. No extra agents are silently added.
+The portable configuration is [solo-orchestrator.json](presets/solo-orchestrator.json).
+
 `hire` requires the exact child's `name`, `role`, `instructions`, `skills`, `tools`, `assignment`
 and `acceptance_criteria`. File-writing children also receive an `output` path; their assigned file
 lives under `delegates/<name>/` to keep ownership separate. Read-only children can omit `output`
@@ -290,9 +302,12 @@ the CLI goal argument or goal file supplies the mission.
 | `communication_links` | `null` | Unrestricted optional messaging; a list of `{source, target}` paths restricts it, and `[]` disables it |
 | `max_dynamic_agents`, `max_hires` | `8`, `48` | Active hired workers and lifetime hires; hierarchy depth is always limited to three levels |
 
-A custom `team` replaces the whole roster. Each agent has `name`, `role`, `persona`, `skills`,
-`tools`, and an optional `model`. The `coordinator` and `reviewer` settings name two different team
-members; at least one other member must have `write_file`. For example, copy the roster from
+A custom `team` replaces the whole roster and can contain just one agent. Each agent has `name`,
+`role`, `persona`, `skills`, `tools`, and an optional `model`. The `coordinator` and `reviewer`
+settings name team members and may name the same agent. A sole agent receives both roles when
+those settings are omitted. Deliverables require an eligible author with `write_file` or a
+publisher with `assemble_files`; a distinct dedicated reviewer does not own production tasks.
+For example, copy the roster from
 `run.json`, change the personas or per-agent models, and provide it in your config.
 
 Artifacts are text files of any extension, with a configurable size limit. Generated programs
