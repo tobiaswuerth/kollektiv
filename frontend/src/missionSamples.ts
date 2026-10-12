@@ -4,7 +4,13 @@ import catalogue from "../../src/kollektiv/mission_samples.json";
 export const bundledMissionSamples = catalogue as MissionSample[];
 
 export function missionCatalogue(samples?: MissionSample[]) {
-  return samples?.length ? samples : bundledMissionSamples;
+  // A server started before a frontend update can have an older catalogue.
+  const catalogue = new Map(
+    bundledMissionSamples.map((sample) => [sample.id, sample]),
+  );
+  for (const sample of samples || [])
+    if (!catalogue.has(sample.id)) catalogue.set(sample.id, sample);
+  return [...catalogue.values()];
 }
 
 export const missionLevels = [
@@ -14,8 +20,15 @@ export const missionLevels = [
 ] as const;
 
 export function applyMissionSample(sample: MissionSample, settings: Settings) {
+  const loaded = {
+    ...settings,
+    ...structuredClone(sample.settings),
+  } as Settings;
   return {
     goal: sample.goal,
-    settings: { ...settings, ...sample.settings } as Settings,
+    settings: loaded,
+    ...(sample.positions
+      ? { positions: structuredClone(sample.positions) }
+      : {}),
   };
 }

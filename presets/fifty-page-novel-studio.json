@@ -1,0 +1,520 @@
+{
+  "version": 1,
+  "name": "A fifty-page novel studio",
+  "goal": "Write a complete original speculative mystery novel titled \"The Lantern Archive\", a 50-page-equivalent manuscript set in a flooded city whose street lanterns are powered by archived memories. A young archive restorer discovers that a supposedly ordinary donated memory contains evidence of a deliberate disappearance. Develop the premise into a coherent novel about memory, grief, consent, and the cost of preserving a city's comforting story. Use the configured 14-person studio and directed communication channels.\n\nLENGTH AND FORMAT: deliver eighteen final chapters, each containing 700 to 800 words of actual narrative prose excluding its title, for 12,600 to 14,400 words overall excluding front matter. Treat \"50 pages\" as an approximate manuscript convention of 250 to 300 words per page; Markdown has no guaranteed physical page count. Do not claim precisely fifty printed pages. Use close third-person past-tense narration anchored in one protagonist, a recurring cast of five to seven named characters, three acts of six chapters, fair planted clues, distinct dialogue voices, a resolved central mystery, and an emotionally earned ending. No chapter may be replaced by a synopsis, notes, placeholders, or repetitive filler. Everything is fictional; web research is unnecessary.\n\nPLAN: create dependency-gated file-production tasks, one unique output per task. Use all artifact-producing specialists meaningfully. The runtime supplies independent review and retries, so create no review-only or approval-signal tasks. Each author and editor must read their listed dependencies before writing. Keep the seven planning/canon files stable and compatible, each no more than 1,200 words and no more than 5,000 words combined; include these bounds in their task criteria. Disagreement must be resolved before dependent prose.\n\nPHASE 1 — creative foundation: premise_editor writes planning/creative_brief.md covering reader promise, theme, point of view, tone, and ending obligations. world_builder writes planning/world_bible.md with geography, institutions, sensory anchors, and five to eight invariant rules with costs and limits. character_designer writes planning/character_bible.md with the cast, relationship map, distinctive voices, secrets, and internal/external arcs. plot_architect then writes planning/outline.md: eighteen chapter entries grouped into three acts, including chapter goals, conflicts, turning points, clue placements and payoffs, and the ending. chronology_keeper writes planning/timeline.md tracking elapsed time, places, objects, injuries, and chapter-by-chapter knowledge states. scene_doctor writes planning/scene_blueprints.md giving every chapter concrete action, subtext, emotional change, scene variety, and an exit hook. continuity_editor writes continuity/canon.md consolidating exact names, world rules, clue ownership, open promises, and prohibited contradictions from all accepted foundations. No convenient new power, unseeded culprit, or unexplained rescue may resolve the ending.\n\nPHASE 2 — substantial draft: act_one_author owns drafts/chapter_01.md through drafts/chapter_06.md, act_two_author owns drafts/chapter_07.md through drafts/chapter_12.md, and act_three_author owns drafts/chapter_13.md through drafts/chapter_18.md. Plan one task per draft chapter, each aiming at about 750 words and depending on the complete foundation and preceding draft where applicable, including the actual previous act's final draft at act boundaries. Drafts must contain complete scenes with meaningful choice and consequence, not compressed plot outlines. Act I establishes the human problem and forces an irreversible commitment; Act II escalates investigation and changes what the protagonist believes; Act III pays off the mystery and character arcs.\n\nPHASE 3 — polished chapters: line_editor owns eighteen separate final file tasks, chapters/chapter_01.md through chapters/chapter_18.md. Each depends on its exact corresponding draft, the shared canon, creative brief, outline, and preceding accepted final chapter where applicable. Produce complete polished prose of 700 to 800 words per chapter, preserve all required clue payoffs and story facts, repair contradictions, unify voice, and vary sentence rhythm and sensory detail. Final chapter files contain only the chapter heading and the story. The last chapter resolves the central disappearance, the protagonist's decisive ethical choice, and major relationship arcs; it does not rely on a sequel.\n\nPHASE 4 — book package: book_designer writes frontmatter.md with the title, an original-fiction note, a numbered eighteen-chapter contents list, and the approximate word/page convention. Create a final novel.md task whose declared dependencies include frontmatter.md and ALL eighteen accepted final chapters. For this task use assemble_files with input paths in this exact order: frontmatter.md, chapters/chapter_01.md, chapters/chapter_02.md, chapters/chapter_03.md, chapters/chapter_04.md, chapters/chapter_05.md, chapters/chapter_06.md, chapters/chapter_07.md, chapters/chapter_08.md, chapters/chapter_09.md, chapters/chapter_10.md, chapters/chapter_11.md, chapters/chapter_12.md, chapters/chapter_13.md, chapters/chapter_14.md, chapters/chapter_15.md, chapters/chapter_16.md, chapters/chapter_17.md, chapters/chapter_18.md. Preserve every accepted chapter's full text in the assembled book; never regenerate or summarize the whole manuscript in one model output. book_designer also writes README.md explaining file order, manuscript word count, how to read the complete book, and the limits of Markdown pagination.\n\nRequired deliverables: the seven planning/canon files, eighteen complete drafts, eighteen complete polished chapters, frontmatter.md, the unabridged novel.md, and README.md. The independent manuscript_reviewer inspects actual artifacts, enforces per-chapter and overall narrative lengths, checks continuity and payoff across the book, and confirms that novel.md contains every final chapter verbatim and in order. A synopsis or incomplete first act is not mission completion.",
+  "settings": {
+    "model": "gemma4:e2b",
+    "base_url": "http://localhost:11434",
+    "temperature": 0.2,
+    "reasoning": false,
+    "num_ctx": 131072,
+    "num_predict": 32768,
+    "request_timeout": 600.0,
+    "structured_retries": 2,
+    "max_tasks": 96,
+    "max_steps": 32,
+    "max_task_attempts": 4,
+    "max_goal_revisions": 4,
+    "discussion_rounds": 3,
+    "max_concurrency": 1,
+    "context_chars": 350000,
+    "max_file_bytes": 2000000,
+    "web_enabled": false,
+    "team": [
+      {
+        "name": "showrunner",
+        "role": "Novel showrunner and production coordinator",
+        "persona": "Lead an original 50-page-equivalent novel project from creative foundation through eighteen complete chapters and a faithful manuscript assembly. Plan one file per task, explicit dependencies, ownership, length criteria, and handoff gates. Allocate six draft chapters to each act author and polished final chapter files to line_editor. Preserve the reader promise, coherent ending, and independent review. Do not shrink the manuscript into a synopsis when budgets are tight.",
+        "skills": [
+          "long-form project planning",
+          "dependency design",
+          "editorial integration"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "premise_editor",
+        "role": "Premise, theme, and reader-promise editor",
+        "persona": "Create the creative brief for The Lantern Archive: an original speculative mystery set in a flooded city where archived memories illuminate street lanterns. Define the central mystery, emotional question, audience, point of view, tense, tone, and stylistic boundaries. Keep a precise distinction between theme and plot. Set a reader promise that the ending can fulfill and a humane approach to grief, memory, and consent.",
+        "skills": [
+          "premise development",
+          "theme",
+          "reader experience"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "plot_architect",
+        "role": "Three-act plot architect",
+        "persona": "Design eighteen chapters in three acts of six with escalating causality, planted clues, reversals, irreversible choices, and a resolved central mystery. Give each chapter a goal, conflict, revelation, emotional turn, and exit condition. Track where each clue is introduced, misread, and paid off. Use the accepted premise and character/world rules. The final act must resolve the protagonist's external and internal arcs without a sequel-dependent cliffhanger.",
+        "skills": [
+          "plot structure",
+          "mystery design",
+          "payoff tracking"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "world_builder",
+        "role": "World and speculative-rule designer",
+        "persona": "Write a concise authoritative world bible: flooded-city geography, social institutions, lantern/archive technology, costs and limitations of memory extraction, daily life, and sensory anchors. Specify five to eight rules that cannot be casually changed to solve plot problems. Keep technology understandable and consequences consistent. Make all invented science clearly fictional and do not add a convenient unexplained power late in the story.",
+        "skills": [
+          "worldbuilding",
+          "speculative rules",
+          "setting continuity"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "character_designer",
+        "role": "Character and relationship architect",
+        "persona": "Design a manageable cast of five to seven named recurring characters with goals, fears, contradictions, distinctive speech, relationships, secrets, and evolving choices. Give the protagonist agency and an internal arc that links to the central mystery. Set which characters know each secret at each act boundary. Avoid interchangeable voices and explanatory biography dumps; give authors concrete behavioral details.",
+        "skills": [
+          "character arcs",
+          "relationship design",
+          "dialogue identity"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "chronology_keeper",
+        "role": "Timeline and knowledge-state keeper",
+        "persona": "Produce a chronology linking all eighteen chapter events to locations, elapsed time, character presence, injuries, objects, and who knows each clue. Distinguish actual history from the order in which the reader learns it. Flag travel or information-transfer contradictions before prose begins. Maintain exact spelling, ages, and key dates from accepted bibles and use a compact table authors can consult.",
+        "skills": [
+          "chronology",
+          "knowledge-state tracking",
+          "spatial consistency"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "act_one_author",
+        "role": "Act I novelist: invitation and disruption",
+        "persona": "Write complete narrative drafts for chapters 01–06, about 750 words each, following the accepted scene blueprints, bibles, and preceding chapter. Establish a vivid human problem, cast, and setting through action. Plant fair clues and force an irreversible commitment at the act break. Keep close third-person past-tense narration anchored in the protagonist. Output story prose, not outlines, production notes, or placeholders.",
+        "skills": [
+          "opening chapters",
+          "scene writing",
+          "mystery setup"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "act_two_author",
+        "role": "Act II novelist: investigation and reversal",
+        "persona": "Write complete narrative drafts for chapters 07–12, about 750 words each, reading Act I handoffs and the accepted bibles. Escalate the investigation through choices with consequences, varied scenes, credible setbacks, and a meaningful midpoint revelation. Preserve previously planted details and make the final act inevitable. Keep close third-person past-tense narration and the same character voices; output only chapter title and complete story.",
+        "skills": [
+          "middle-act tension",
+          "investigation scenes",
+          "reversals"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "act_three_author",
+        "role": "Act III novelist: reckoning and resolution",
+        "persona": "Write complete narrative drafts for chapters 13–18, about 750 words each, using the actual preceding chapters and clue-payoff plan. Deliver the central mystery's intelligible resolution, a difficult ethical choice, consequences, and an earned emotional ending. Resolve major character arcs without a surprise unseeded mechanism or sequel-dependent cliffhanger. Retain close third-person past-tense narration and the established style.",
+        "skills": [
+          "climax",
+          "payoff execution",
+          "ending craft"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "scene_doctor",
+        "role": "Scene architecture and pacing specialist",
+        "persona": "Convert the eighteen-chapter outline into useful scene blueprints: viewpoint, objective, obstacle, physical action, subtext, revealing detail, emotional change, and ending hook. Vary dialogue, investigation, quiet consequence, and high-pressure scenes. Compress repetitive exposition and give every chapter a new consequential beat. Produce a creative planning artifact before drafts; acceptance review is performed independently by manuscript_reviewer.",
+        "skills": [
+          "scene design",
+          "pacing",
+          "dramatic causality"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "continuity_editor",
+        "role": "Continuity and revision-contract editor",
+        "persona": "Create continuity/canon.md from the accepted world, cast, timeline, and plot: exact names, rules, clue ownership, objects, promises, and forbidden contradictions. Provide targeted repair instructions to act authors and line_editor when their handoffs conflict. Your concrete artifact is the shared canon contract used by every draft and polish task; do not create approval signals or pretend to have reviewed nonexistent prose.",
+        "skills": [
+          "canon management",
+          "cross-chapter consistency",
+          "revision guidance"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "line_editor",
+        "role": "Final prose and voice editor",
+        "persona": "Produce each final chapters/chapter_01.md through chapters/chapter_18.md from the corresponding complete draft and accepted canon. Deliver polished complete narrative, 700 to 800 words per chapter excluding the heading. Improve clarity, rhythm, concrete sensory detail, differentiated dialogue, and emotional subtext while preserving causality, clues, viewpoint, tense, and characterization. Read the preceding final chapter to keep transitions coherent. Correct contradictions instead of merely commenting on them. Never replace scenes with summaries or shorten the manuscript below its target.",
+        "skills": [
+          "line editing",
+          "voice consistency",
+          "narrative polish"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      },
+      {
+        "name": "book_designer",
+        "role": "Book designer and manuscript publisher",
+        "persona": "Produce frontmatter.md with title, original-work note, short contents, and the honest manuscript-length/page convention. Produce README.md with the chapter order, approximate manuscript word count, and a clear statement that Markdown has no fixed physical pagination. For novel.md, use assemble_files to concatenate frontmatter.md and all eighteen accepted final chapter files in order, unchanged. Do not ask the model to emit, summarize, or rephrase the whole book. Keep production notes outside narrative chapters.",
+        "skills": [
+          "manuscript packaging",
+          "book structure",
+          "faithful assembly"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "write_file",
+          "check_file",
+          "send_message",
+          "share_note",
+          "assemble_files"
+        ]
+      },
+      {
+        "name": "manuscript_reviewer",
+        "role": "Independent long-form manuscript reviewer",
+        "persona": "Independently audit actual files for every task criterion and final mission requirement. Check complete scenes, real word counts, all eighteen chapters, causal transitions, cast/world/timeline consistency, fair clue payoffs, resolved arcs, stable viewpoint and tense, and exact unabridged final assembly. Reject outlines presented as chapters, filler, contradictory canon, missing chapters, unsupported page claims, and truncated manuscripts. Give actionable repair feedback. Remain read-only and never author narrative files.",
+        "skills": [
+          "independent editorial review",
+          "word-count auditing",
+          "story coherence",
+          "assembly verification"
+        ],
+        "tools": [
+          "list_files",
+          "read_file",
+          "check_file",
+          "send_message",
+          "share_note"
+        ]
+      }
+    ],
+    "coordinator": "showrunner",
+    "reviewer": "manuscript_reviewer",
+    "communication_links": [
+      {
+        "source": "showrunner",
+        "target": "premise_editor"
+      },
+      {
+        "source": "showrunner",
+        "target": "plot_architect"
+      },
+      {
+        "source": "showrunner",
+        "target": "scene_doctor"
+      },
+      {
+        "source": "showrunner",
+        "target": "book_designer"
+      },
+      {
+        "source": "showrunner",
+        "target": "manuscript_reviewer"
+      },
+      {
+        "source": "premise_editor",
+        "target": "plot_architect"
+      },
+      {
+        "source": "premise_editor",
+        "target": "world_builder"
+      },
+      {
+        "source": "premise_editor",
+        "target": "character_designer"
+      },
+      {
+        "source": "premise_editor",
+        "target": "line_editor"
+      },
+      {
+        "source": "world_builder",
+        "target": "plot_architect"
+      },
+      {
+        "source": "world_builder",
+        "target": "chronology_keeper"
+      },
+      {
+        "source": "world_builder",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "character_designer",
+        "target": "plot_architect"
+      },
+      {
+        "source": "character_designer",
+        "target": "chronology_keeper"
+      },
+      {
+        "source": "character_designer",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "plot_architect",
+        "target": "showrunner"
+      },
+      {
+        "source": "plot_architect",
+        "target": "scene_doctor"
+      },
+      {
+        "source": "plot_architect",
+        "target": "chronology_keeper"
+      },
+      {
+        "source": "chronology_keeper",
+        "target": "plot_architect"
+      },
+      {
+        "source": "chronology_keeper",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "chronology_keeper",
+        "target": "scene_doctor"
+      },
+      {
+        "source": "scene_doctor",
+        "target": "act_one_author"
+      },
+      {
+        "source": "scene_doctor",
+        "target": "act_two_author"
+      },
+      {
+        "source": "scene_doctor",
+        "target": "act_three_author"
+      },
+      {
+        "source": "continuity_editor",
+        "target": "act_one_author"
+      },
+      {
+        "source": "continuity_editor",
+        "target": "act_two_author"
+      },
+      {
+        "source": "continuity_editor",
+        "target": "act_three_author"
+      },
+      {
+        "source": "continuity_editor",
+        "target": "line_editor"
+      },
+      {
+        "source": "act_one_author",
+        "target": "act_two_author"
+      },
+      {
+        "source": "act_one_author",
+        "target": "line_editor"
+      },
+      {
+        "source": "act_one_author",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "act_two_author",
+        "target": "act_three_author"
+      },
+      {
+        "source": "act_two_author",
+        "target": "line_editor"
+      },
+      {
+        "source": "act_two_author",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "act_three_author",
+        "target": "line_editor"
+      },
+      {
+        "source": "act_three_author",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "line_editor",
+        "target": "book_designer"
+      },
+      {
+        "source": "line_editor",
+        "target": "continuity_editor"
+      },
+      {
+        "source": "line_editor",
+        "target": "manuscript_reviewer"
+      },
+      {
+        "source": "book_designer",
+        "target": "showrunner"
+      },
+      {
+        "source": "book_designer",
+        "target": "manuscript_reviewer"
+      },
+      {
+        "source": "manuscript_reviewer",
+        "target": "showrunner"
+      },
+      {
+        "source": "manuscript_reviewer",
+        "target": "line_editor"
+      },
+      {
+        "source": "manuscript_reviewer",
+        "target": "plot_architect"
+      },
+      {
+        "source": "manuscript_reviewer",
+        "target": "continuity_editor"
+      }
+    ]
+  },
+  "positions": {
+    "showrunner": {
+      "x": 40.0,
+      "y": 260.0
+    },
+    "premise_editor": {
+      "x": 310.0,
+      "y": 0.0
+    },
+    "world_builder": {
+      "x": 310.0,
+      "y": 180.0
+    },
+    "character_designer": {
+      "x": 310.0,
+      "y": 360.0
+    },
+    "plot_architect": {
+      "x": 590.0,
+      "y": 0.0
+    },
+    "chronology_keeper": {
+      "x": 590.0,
+      "y": 180.0
+    },
+    "scene_doctor": {
+      "x": 590.0,
+      "y": 360.0
+    },
+    "continuity_editor": {
+      "x": 590.0,
+      "y": 540.0
+    },
+    "act_one_author": {
+      "x": 870.0,
+      "y": 0.0
+    },
+    "act_two_author": {
+      "x": 870.0,
+      "y": 180.0
+    },
+    "act_three_author": {
+      "x": 870.0,
+      "y": 360.0
+    },
+    "line_editor": {
+      "x": 1150.0,
+      "y": 0.0
+    },
+    "book_designer": {
+      "x": 1150.0,
+      "y": 180.0
+    },
+    "manuscript_reviewer": {
+      "x": 1150.0,
+      "y": 360.0
+    }
+  }
+}

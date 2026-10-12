@@ -11,12 +11,28 @@ from langchain_core.tools import BaseTool, tool
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import Settings
-from .workspace import Workspace
+from .workspace import Workspace, relative_path
 
 
 class WriteContent(BaseModel):
     model_config = ConfigDict(extra="forbid")
     content: str = Field(min_length=1, description="The complete text of the assigned deliverable")
+
+
+class AssembleContent(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    paths: list[str] = Field(
+        min_length=1,
+        max_length=200,
+        description="Exact dependency artifact paths in the order they should appear",
+    )
+    separator: str = Field(default="\n\n", max_length=10000)
+    prefix: str = Field(
+        default="",
+        max_length=50000,
+        description="Optional title or front matter placed before the dependency content",
+    )
 
 
 def record(sender: str, content: str, **fields) -> dict:
@@ -41,12 +57,14 @@ class Toolkit:
         agent: str,
         output: str | None,
         emit: Callable[..., dict],
+        input_files: list[str] | None = None,
     ):
         self.settings = settings
         self.workspace = workspace
         self.agent = agent
         self.output = output
         self.emit = emit
+        self.input_files = tuple(relative_path(path) for path in (input_files or []))
         self.messages: dict[str, dict] = {}
         self.notes: dict[str, dict] = {}
 
@@ -71,6 +89,42 @@ class Toolkit:
                 raise ValueError("No output is assigned to this agent")
             result = self.workspace.write(self.output, content)
             self.emit("artifact_written", agent=self.agent, **result)
+            return json.dumps(result)
+
+        @tool(args_schema=AssembleContent)
+        def assemble_files(paths: list[str], separator: str = "\n\n", prefix: str = "") -> str:
+            """Join approved dependency files into your assigned artifact without rewriting them.
+
+            Specify dependency paths in manuscript order. Optional prefix and separator are
+            inserted verbatim. Returns checksums and counts, not the full assembled text.
+            """
+            if not self.output:
+                raise ValueError("No output is assigned to this agent")
+            sources = [relative_path(path) for path in paths]
+            if len({path.casefold() for path in sources}) != len(sources):
+                raise ValueError("Assembly sources must be unique")
+            if any(path not in self.input_files for path in sources):
+                raise ValueError("Assembly sources must be assigned task dependency files")
+            output_path = self.workspace.path(self.output)
+            if any(
+                path.casefold() == relative_path(self.output).casefold()
+                or self.workspace.path(path) == output_path
+                for path in sources
+            ):
+                raise ValueError("Assembly cannot include its own assigned output")
+            # Read and validate every source before the existing output is replaced. The
+            # workspace enforces confinement, the aggregate byte limit and atomic writes.
+            size = len(prefix.encode("utf-8")) + len(separator.encode("utf-8")) * (len(sources) - 1)
+            parts = []
+            for path in sources:
+                content = self.workspace.read(path)
+                size += len(content.encode("utf-8"))
+                if size > self.workspace.max_bytes:
+                    raise ValueError(f"File exceeds {self.workspace.max_bytes} bytes")
+                parts.append(content)
+            content = prefix + separator.join(parts)
+            result = self.workspace.write(self.output, content)
+            self.emit("artifact_written", agent=self.agent, sources=sources, **result)
             return json.dumps(result)
 
         @tool
@@ -136,6 +190,7 @@ class Toolkit:
             list_files,
             read_file,
             write_file,
+            assemble_files,
             check_file,
             send_message,
             share_note,
@@ -149,4 +204,5 @@ class Toolkit:
             if t.name in allowed
             and (self.settings.web_enabled or not t.name.startswith("web_"))
             and (self.output is not None or t.name != "write_file")
+            and (t.name != "assemble_files" or (self.output is not None and self.input_files))
         ]

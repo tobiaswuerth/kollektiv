@@ -39,8 +39,8 @@ export function MissionSamplePicker({
       </select>
       <p id={descriptionId} aria-live="polite">
         {sample
-          ? `${sample.description} The goal below is editable; your team, model, and concurrency are preserved.`
-          : "Choose a starting mission or write your own. Samples adjust task budgets and keep your team and model."}
+          ? `${sample.description} ${sample.settings?.team ? `Loads its ${sample.settings.team.length}-agent team and directed paths; your model and concurrency stay as configured.` : "The goal is editable; your team, model, and concurrency are preserved."}`
+          : "Choose a starting mission or write your own. Studio samples include specialized teams; your model stays as configured."}
       </p>
     </div>
   );

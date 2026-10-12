@@ -87,6 +87,14 @@ export function ConfigurationLibrary({
         <label
           className="icon-button editor-import"
           title="Import configuration JSON"
+          role="button"
+          tabIndex={0}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              event.currentTarget.querySelector("input")?.click();
+            }
+          }}
         >
           <Upload size={15} />
           <span className="sr-only">Import configuration JSON</span>

@@ -227,6 +227,10 @@ class Workflow:
             "Read the dependency files listed in the task before writing. "
             "Use write_file to produce the complete assigned artifact, including all content. "
             "write_file takes only content; its output path is already bound to your task. "
+            "If assemble_files is available, use it to join approved dependency files in the "
+            "required order for a long manuscript or integration artifact. It writes your "
+            "assigned output directly without making you repeat the entire text. "
+            "Do not replace a successfully assembled artifact with a shortened write_file call. "
             "Read any existing version before making corrections. Use check_file when helpful. "
             "Send useful decisions or questions to teammates and save reusable facts with share_note. "
             "You can only write your assigned output. After writing it, finish with a brief summary. "
@@ -235,7 +239,14 @@ class Workflow:
 
     def act(self, state: WorkerState) -> dict:
         task = state["task"]
-        toolkit = Toolkit(self.settings, self.workspace, task["owner"], task["output"], self.emit)
+        toolkit = Toolkit(
+            self.settings,
+            self.workspace,
+            task["owner"],
+            task["output"],
+            self.emit,
+            input_files=task.get("input_files", []),
+        )
         tools = toolkit.build()
         history = messages_from_dict(state.get("history", []))
         prompt = self.worker_prompt(state)
@@ -263,7 +274,14 @@ class Workflow:
     def execute(self, state: WorkerState) -> dict:
         task = state["task"]
         reply = messages_from_dict([state["reply"]])[0]
-        toolkit = Toolkit(self.settings, self.workspace, task["owner"], task["output"], self.emit)
+        toolkit = Toolkit(
+            self.settings,
+            self.workspace,
+            task["owner"],
+            task["output"],
+            self.emit,
+            input_files=task.get("input_files", []),
+        )
         if reply.invalid_tool_calls and not reply.tool_calls:
             messages = [
                 HumanMessage(
@@ -273,10 +291,10 @@ class Workflow:
                     )
                 )
             ]
-        elif sum(c["name"] == "write_file" for c in reply.tool_calls) > 1:
+        elif sum(c["name"] in ("write_file", "assemble_files") for c in reply.tool_calls) > 1:
             messages = [
                 ToolMessage(
-                    content="Use only one write_file call per step.",
+                    content="Use only one output-writing call (write_file or assemble_files) per step.",
                     tool_call_id=c["id"],
                     name=c["name"],
                     status="error",

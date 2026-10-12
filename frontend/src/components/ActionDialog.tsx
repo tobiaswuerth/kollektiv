@@ -3,7 +3,7 @@ import { useRoom } from "../store";
 import { Modal } from "./ui";
 import { applyMissionSample } from "../missionSamples";
 import { MissionSamplePicker } from "./MissionSamplePicker";
-import type { Settings } from "../types";
+import type { GraphPosition, Settings } from "../types";
 export type Action = { kind: string; fields?: Record<string, string> };
 export function ActionDialog({
   action,
@@ -22,6 +22,8 @@ export function ActionDialog({
     [concurrency, setConcurrency] = useState(config.max_concurrency);
   const [settings, setSettings] = useState(JSON.stringify(config, null, 2));
   const [sampleId, setSampleId] = useState("");
+  const [samplePositions, setSamplePositions] =
+    useState<Record<string, GraphPosition>>();
   const [content, setContent] = useState(""),
     [recipient, setRecipient] = useState(action.fields?.recipient || "all");
   const [owner, setOwner] = useState(""),
@@ -47,6 +49,7 @@ export function ActionDialog({
       const loaded = applyMissionSample(selected, JSON.parse(settings));
       setGoal(loaded.goal);
       setSettings(JSON.stringify(loaded.settings, null, 2));
+      setSamplePositions(loaded.positions);
       setSampleId(id);
       setError("");
     } catch {
@@ -60,13 +63,20 @@ export function ActionDialog({
     setBusy(true);
     setError("");
     try {
-      if (action.kind === "create")
-        await createRun(goal, {
+      if (action.kind === "create") {
+        const runtimeSettings = {
           ...JSON.parse(settings),
           model,
           max_concurrency: concurrency,
-        } as Settings);
-      else if (action.kind === "revise_goal")
+        } as Settings;
+        const names = new Set(runtimeSettings.team.map((agent) => agent.name));
+        const positions =
+          samplePositions &&
+          Object.fromEntries(
+            Object.entries(samplePositions).filter(([name]) => names.has(name)),
+          );
+        await createRun(goal, runtimeSettings, positions);
+      } else if (action.kind === "revise_goal")
         await intervene(action.kind, { goal, settings: JSON.parse(settings) });
       else if (action.kind === "inject_message")
         await intervene(action.kind, { recipient, content });

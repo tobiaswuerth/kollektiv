@@ -2,7 +2,7 @@
 
 import json
 from importlib.resources import files
-from typing import Literal, TypedDict, cast
+from typing import Literal, NotRequired, TypedDict, cast
 
 
 class MissionSample(TypedDict):
@@ -11,7 +11,8 @@ class MissionSample(TypedDict):
     difficulty: Literal["easy", "medium", "elaborate"]
     description: str
     goal: str
-    settings: dict[str, int]
+    settings: dict
+    positions: NotRequired[dict[str, dict[str, float]]]
 
 
 def mission_samples() -> list[MissionSample]:

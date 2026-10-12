@@ -1,16 +1,25 @@
-import { memo, useRef } from "react";
+import { memo, useEffect, useRef, useState } from "react";
 import {
   Background,
   Controls,
   Handle,
   MarkerType,
+  MiniMap,
+  Panel,
   Position,
   ReactFlow,
   ReactFlowProvider,
   type Node,
   type NodeProps,
 } from "@xyflow/react";
-import { Code2, Network, ShieldCheck } from "lucide-react";
+import {
+  Code2,
+  Focus,
+  Network,
+  Route,
+  ShieldCheck,
+  Trash2,
+} from "lucide-react";
 import { tones } from "../selectors";
 import type { Agent, TeamConfiguration } from "../types";
 import { addCommunicationLink, removeAgent } from "../graph/editorModel";
@@ -54,7 +63,10 @@ const DraftAgent = memo(({ data, selected }: NodeProps<DraftNode>) => {
         <span>{data.designation || "Worker"}</span>
         <span>{data.agent.tools.length} tools</span>
       </div>
-      <p>{data.agent.persona}</p>
+      <p title={data.agent.skills.join(", ")}>
+        {data.agent.skills.slice(0, 2).join(" · ") ||
+          "Select to edit instructions"}
+      </p>
       <Handle
         type="source"
         position={Position.Bottom}
@@ -66,20 +78,83 @@ const DraftAgent = memo(({ data, selected }: NodeProps<DraftNode>) => {
 });
 const nodeTypes = { draftAgent: DraftAgent };
 
+function SelectionControls({
+  selected,
+  selectedEdge,
+  removePath,
+  focusedPaths,
+  setFocusedPaths,
+  focusSelected,
+}: {
+  selected: string;
+  selectedEdge: string;
+  removePath: () => void;
+  focusedPaths: boolean;
+  setFocusedPaths: (value: boolean) => void;
+  focusSelected: () => void;
+}) {
+  return (
+    <Panel position="top-right" className="editor-selection-controls">
+      <button
+        type="button"
+        className="button"
+        disabled={!selected}
+        onClick={focusSelected}
+        aria-label="Focus selected agent"
+      >
+        <Focus size={14} />
+        Focus agent
+      </button>
+      <button
+        type="button"
+        className="button"
+        disabled={!selected}
+        aria-pressed={focusedPaths}
+        onClick={() => setFocusedPaths(!focusedPaths)}
+        aria-label="Highlight selected agent paths"
+      >
+        <Route size={14} />
+        {focusedPaths ? "All paths" : "Agent paths"}
+      </button>
+      {selectedEdge && (
+        <button
+          type="button"
+          className="button danger"
+          onClick={removePath}
+          aria-label="Remove selected path"
+        >
+          <Trash2 size={14} />
+          Remove path
+        </button>
+      )}
+    </Panel>
+  );
+}
+
 function Canvas({
   draft,
   change,
   selected,
   select,
   viewportRevision,
+  focusRequest,
+  onPathCreated,
 }: {
   draft: TeamConfiguration;
   change: (draft: TeamConfiguration) => void;
   selected: string;
-  select: (name: string) => void;
+  select: (name: string, focus?: boolean) => void;
   viewportRevision: number;
+  focusRequest: { id: string; revision: number };
+  onPathCreated: () => void;
 }) {
   const container = useRef<HTMLDivElement>(null);
+  const [selectedEdge, setSelectedEdge] = useState("");
+  const [focusedPaths, setFocusedPaths] = useState(false);
+  useEffect(() => {
+    setSelectedEdge("");
+    setFocusedPaths(false);
+  }, [viewportRevision]);
   const { measurements, acceptMeasurements } = useNodeMeasurements();
   const nodes: DraftNode[] = draft.settings.team.map((agent, index) => ({
     id: agent.name,
@@ -104,7 +179,18 @@ function Canvas({
     sourceHandle: "out",
     targetHandle: "in",
     type: "smoothstep",
-    style: { stroke: "#7085c0", strokeWidth: 1.5 },
+    selected: selectedEdge === linkId(link),
+    style: {
+      stroke: selectedEdge === linkId(link) ? "#b0adff" : "#7085c0",
+      strokeWidth: selectedEdge === linkId(link) ? 2.5 : 1.5,
+      opacity:
+        focusedPaths &&
+        selected &&
+        link.source !== selected &&
+        link.target !== selected
+          ? 0.1
+          : 1,
+    },
     markerEnd: { type: MarkerType.ArrowClosed, color: "#7085c0" },
   }));
   return (
@@ -114,11 +200,18 @@ function Canvas({
         edges={edges}
         nodeTypes={nodeTypes}
         colorMode="dark"
-        minZoom={0.2}
+        minZoom={0.18}
         maxZoom={2}
         proOptions={{ hideAttribution: true }}
-        onNodeClick={(_, node) => select(node.id)}
-        onPaneClick={() => select("")}
+        onNodeClick={(_, node) => {
+          select(node.id);
+          setSelectedEdge("");
+        }}
+        onEdgeClick={(_, edge) => setSelectedEdge(edge.id)}
+        onPaneClick={() => {
+          select("");
+          setSelectedEdge("");
+        }}
         onNodesChange={(changes) => {
           acceptMeasurements(changes);
           let next = draft;
@@ -147,14 +240,15 @@ function Canvas({
               },
             });
         }}
-        onConnect={(connection) =>
+        onConnect={(connection) => {
           change(
             addCommunicationLink(draft, {
               source: connection.source,
               target: connection.target,
             }),
-          )
-        }
+          );
+          onPathCreated();
+        }}
         isValidConnection={(connection) =>
           connection.source !== connection.target &&
           !edges.some(
@@ -167,10 +261,40 @@ function Canvas({
       >
         <Background gap={22} size={1} color="#293551" />
         <Controls showInteractive={false} />
+        <MiniMap
+          pannable
+          zoomable
+          position="bottom-right"
+          nodeColor="#69799f"
+          maskColor="#080f208f"
+          aria-label="Graph overview map"
+        />
         <GraphViewport
           container={container}
           identity={`${viewportRevision}:${draft.settings.team.map((agent) => agent.name).join("|")}`}
           count={nodes.length}
+          focusRequest={focusRequest}
+        />
+        <SelectionControls
+          selected={selected}
+          selectedEdge={
+            edges.some((edge) => edge.id === selectedEdge) ? selectedEdge : ""
+          }
+          removePath={() => {
+            change({
+              ...draft,
+              settings: {
+                ...draft.settings,
+                communication_links: (
+                  draft.settings.communication_links || []
+                ).filter((link) => linkId(link) !== selectedEdge),
+              },
+            });
+            setSelectedEdge("");
+          }}
+          focusedPaths={focusedPaths}
+          setFocusedPaths={setFocusedPaths}
+          focusSelected={() => select(selected, true)}
         />
       </ReactFlow>
       <div className="editor-canvas-hint">

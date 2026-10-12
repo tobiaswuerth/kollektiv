@@ -8,26 +8,47 @@ export function GraphViewport({
   container,
   identity,
   count,
+  focusRequest,
 }: {
   container: RefObject<HTMLDivElement | null>;
   identity: string;
   count: number;
+  focusRequest?: { id: string; revision: number };
 }) {
   const initialized = useNodesInitialized();
   const { fitView } = useReactFlow();
   const fitRef = useRef(fitView);
   fitRef.current = fitView;
   const lastSize = useRef("");
-  const fit = () => {
+  const preferredNode = useRef("");
+  const cameraFrame = useRef(0);
+  const scheduleFit = () => {
     const box = container.current?.getBoundingClientRect();
-    if (box && canFitGraph(box.width, box.height, initialized, count)) {
-      void fitRef.current({ padding: 0.14, duration: 0 });
-    }
+    if (!box || !canFitGraph(box.width, box.height, initialized, count)) return;
+    cancelAnimationFrame(cameraFrame.current);
+    cameraFrame.current = requestAnimationFrame(() => {
+      const id = preferredNode.current;
+      void fitRef.current(
+        id
+          ? {
+              nodes: [{ id }],
+              padding: 0.6,
+              minZoom: 0.9,
+              maxZoom: 1.15,
+              duration: 0,
+            }
+          : { padding: 0.14, duration: 0 },
+      );
+    });
+  };
+  const fit = () => {
+    preferredNode.current = "";
+    scheduleFit();
   };
   useEffect(() => {
+    preferredNode.current = "";
     const element = container.current;
     if (!element || !initialized || !count) return;
-    let frame = 0;
     const schedule = () => {
       const box = element.getBoundingClientRect();
       const size = `${Math.round(box.width)}:${Math.round(box.height)}`;
@@ -37,20 +58,22 @@ export function GraphViewport({
       )
         return;
       lastSize.current = size;
-      cancelAnimationFrame(frame);
-      frame = requestAnimationFrame(
-        () => void fitRef.current({ padding: 0.14, duration: 0 }),
-      );
+      scheduleFit();
     };
     lastSize.current = "";
     const observer = new ResizeObserver(schedule);
     observer.observe(element);
     schedule();
     return () => {
-      cancelAnimationFrame(frame);
+      cancelAnimationFrame(cameraFrame.current);
       observer.disconnect();
     };
   }, [container, identity, initialized, count]);
+  useEffect(() => {
+    preferredNode.current = focusRequest?.id || "";
+    if (!preferredNode.current || !initialized) return;
+    scheduleFit();
+  }, [focusRequest?.id, focusRequest?.revision, initialized]);
   return (
     <Panel position="top-left">
       <button

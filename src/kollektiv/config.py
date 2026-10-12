@@ -8,6 +8,7 @@ ToolName = Literal[
     "list_files",
     "read_file",
     "write_file",
+    "assemble_files",
     "check_file",
     "send_message",
     "share_note",

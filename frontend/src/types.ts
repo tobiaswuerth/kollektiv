@@ -35,6 +35,7 @@ export type MissionSample = {
   description: string;
   goal: string;
   settings?: Partial<Settings>;
+  positions?: Record<string, GraphPosition>;
 };
 export type Task = {
   id: string;

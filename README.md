@@ -25,7 +25,8 @@ uv run kollektiv serve --open
 If Ollama is not already running, start `ollama serve` in a separate terminal.
 No cloud credentials are required. Open `http://127.0.0.1:8765` for the agent graph control room.
 To try a mission, choose **New collective → Mission sample** in the UI. Easy, medium and elaborate
-samples load editable goals and matching task budgets. Each tier has two offline examples.
+samples load editable goals and matching task budgets. The six smaller samples work offline;
+two advanced studio samples include their own specialized teams and communication graphs.
 From the terminal, use `uv run kollektiv run "Write a short poem about a robot in poem.md"`.
 A mission takes several model calls; progress appears as agents respond. Ollama speed depends
 on the machine and the amount of content requested.
@@ -109,6 +110,9 @@ a dismissible drawer. Animations respect the operating system's reduced-motion p
 role, instructions, skills, model and tool permissions. Choose the coordinator and reviewer.
 Drag from a source handle to another person's target handle to create a directed communication
 path. Use a path's remove button to delete it. Node positions are saved too.
+The editor fills the browser window. Its Mission, Agents, Settings, Paths and Library views share
+a collapsible sidebar; the properties inspector scrolls independently. Search the role roster
+to focus a specialist at a readable zoom, or collapse both panels for an unobstructed graph.
 
 Save drafts to the server's configuration library, reload them, or export/import portable JSON.
 Presets live in `runs/_configurations/` by default and survive restarts. Creating a collective
@@ -124,6 +128,39 @@ These paths control communication, while task dependencies control execution ord
 The runtime graph preserves dragged positions across reloads and offers **Reset view** to bring
 all people into view. Resizing and run changes fit the graph after its nodes are measured;
 moving message packets follow the displayed path as nodes are dragged or the camera changes.
+
+## Advanced mission studios
+
+Choose a studio in **New collective → Mission sample**, or load it from the editor's Mission tab.
+These examples replace the draft's team, directed message paths and layout while preserving your
+selected Ollama model, server URL and concurrency. The goal and all roles remain editable.
+
+| Example | Team and graph | Deliverables |
+| --- | --- | --- |
+| **Scientific paper lab** | 12 specialists and 35 directed paths: research director, question design, literature, citation evidence, method, formal analysis, adversarial validation, reproducibility, results, limitations, manuscript integration and independent peer review | A 4,500–6,500-word analytical systems paper on bounded retries and checkpoint recovery, nine manuscript sections, verified primary sources, worked DAG examples and a reproducibility bundle |
+| **50-page novel studio** | 14 specialists and 45 directed paths: showrunner, premise, plot, world, characters, chronology, three act authors, scene design, continuity, line editing, book design and independent manuscript review | A complete speculative mystery, *The Lantern Archive*: creative foundations, 18 drafts, 18 polished chapters, front matter and an unabridged assembled book |
+
+The novel targets 700–800 narrative words in each final chapter, or 12,600–14,400 words overall.
+“50 pages” describes approximate manuscript length at 250–300 words per page; Markdown does not
+enforce physical pagination. The paper is an analytical study with sourced claims and explicit
+assumptions. Its generated reproduction program must be labeled unexecuted until you run it.
+
+Both templates plan file-production tasks in dependency-gated phases and retain independent
+artifact and whole-goal review. `assemble_files` concatenates accepted, declared dependency files
+into the publisher's assigned output, preserving every chapter or section in order. Its response
+contains checksums and counts rather than retransmitting a whole book through the model. It keeps
+the usual workspace confinement, byte limits, atomic writes and checkpoint recovery.
+
+These are substantial local-model workloads. The presets request a 131,072-token context window,
+600-second request timeout and larger planning-output budgets; the novel allows 350,000 characters
+of artifact review context. Choose a model and machine that support those settings, or edit the
+budgets in the editor. The templates have been validated with real graph/tool/checkpoint fixtures;
+they are not pre-generated papers or novels, and completing a run still depends on the model.
+
+Portable configurations are also provided: [scientific-paper-lab.json](presets/scientific-paper-lab.json)
+and [fifty-page-novel-studio.json](presets/fifty-page-novel-studio.json). Import them into the editor,
+or pass one to CLI `--config` together with your mission goal. Regenerate these files from the
+shared catalogue with `uv run python scripts/export_mission_presets.py`.
 
 Create a goal and configure its model/team, then start it or step through one graph node at a time.
 Steps include individual worker model calls, tool executions and reviews. Pause waits for the

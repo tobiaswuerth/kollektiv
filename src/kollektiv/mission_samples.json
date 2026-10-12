@@ -70,5 +70,957 @@
       "max_steps": 20,
       "discussion_rounds": 2
     }
+  },
+  {
+    "id": "scientific-paper-lab",
+    "title": "A scientific paper research lab",
+    "difficulty": "elaborate",
+    "description": "12 specialists build a 4,500–6,500 word analytical systems paper with verified sources, proofs, counterexamples, and a reproducibility bundle. Long-running; web access required.",
+    "goal": "Produce a substantial, defensible analytical scientific paper titled \"Bounded Retries and Checkpoint Recovery in Dependency-Driven Agent Workflows\", plus its reproducibility bundle. This is a theoretical/analytical systems paper, not a fabricated empirical study or a claim of publication. Aim for 4,500 to 6,500 words of main manuscript prose, excluding references and supplements. Use the configured 12-person research team and directed communication channels.\n\nWork in dependency-gated phases. Each task owns exactly one output file; review and approval already happen in the runtime, so do not create approval-only tasks. Every artifact-producing specialist must have meaningful work aligned to their role. Keep each of the six research Markdown notes at no more than 1,000 words and their combined length at no more than 6,000 words; compact definitions and worked traces must preserve rigor. Keep evidence records concise so the final manuscript and provenance remain within the configured context budget.\n\nPHASE 1 — question and evidence: problem_formulator writes research/question.md defining the research question, a finite task DAG, cost variables, assumptions, and exclusions. literature_scout writes research/literature.md with a focused related-work synthesis. evidence_curator writes research/evidence.json and sections/08-references.md after opening and verifying at least five primary sources (research papers or official documentation); each evidence entry records the supported claim, exact source URL, title, locator when available, access date, and verification status. Never invent references, identifiers, quotations, or inaccessible source contents. Unverified material must be explicitly identified and cannot support a manuscript claim.\n\nPHASE 2 — method and analysis: protocol_designer writes research/protocol.md and reproducibility/examples.json specifying exact chain, fork-join diamond, and parallel-layer DAGs, serial and bounded-width scheduling policies, retry budgets, checkpoint states, and cost metrics. formal_analyst writes research/proofs.md with explicit definitions, modest termination/cost propositions, proofs or proof sketches, and manually derived examples. adversarial_validator writes research/counterexamples.md with traces that challenge those assumptions and explain exhausted retries, stale checkpoints, partial writes, and mistaken approvals. Feed valid corrections back before downstream writing. Do not confuse a finite attempt budget with guaranteed successful completion or trustworthy artifacts.\n\nPHASE 3 — reproducibility and manuscript sections: reproducibility_engineer writes reproducibility/analyze.py, a complete Python standard-library-only program that loads examples.json, reconstructs the exact examples, prints the comparison tables, and includes executable assertions for the derived bounds; also write reproducibility/README.md with commands and expected deterministic outputs. Available tools do not execute code: label this bundle NOT EXECUTED and never claim tests passed or invent observed measurements. Produce sections/00-abstract.md (150–250 words), sections/01-introduction.md, sections/02-related-work.md, sections/03-formal-model.md, sections/04-method.md, sections/05-results.md, sections/06-discussion.md, sections/07-conclusion.md, and the verified sections/08-references.md. Assign method to protocol_designer, formal model to formal_analyst, related work to literature_scout, results to results_interpreter, and the other prose sections to manuscript_editor. ethics_editor supplies research/limitations.md before the discussion. The manuscript must include a precise question, defined notation, related-work comparison, reproducible method, supported propositions, exact worked-example tables, threats to validity, limitations, and a restrained conclusion. All empirical-sounding claims must be replaced by explicit analytical statements or labeled hypotheses.\n\nPHASE 4 — publication bundle: Create a final paper.md task whose declared dependencies include ALL nine accepted section files. manuscript_editor assembles paper.md using assemble_files with input paths in this exact order: sections/00-abstract.md, sections/01-introduction.md, sections/02-related-work.md, sections/03-formal-model.md, sections/04-method.md, sections/05-results.md, sections/06-discussion.md, sections/07-conclusion.md, sections/08-references.md. Preserve their complete contents. Never replace sections with summaries or request the model to rewrite the entire long manuscript in one output. Write README.md with the file map, the scope and limitations of the paper, bibliography verification status, and precise reproduction instructions. Required final deliverables include paper.md, the nine section files, the five research Markdown files question/literature/protocol/proofs/counterexamples plus limitations.md, evidence.json, reproducibility/examples.json, reproducibility/analyze.py, reproducibility/README.md, and README.md. The independent peer_reviewer must inspect actual files and cross-file coherence, challenge unsupported claims, and check that the final assembly retains every section. No fabricated data, fake code execution, unsupported novelty, or claims of peer-reviewed acceptance.",
+    "settings": {
+      "max_tasks": 48,
+      "max_steps": 32,
+      "max_task_attempts": 4,
+      "max_goal_revisions": 4,
+      "discussion_rounds": 3,
+      "context_chars": 300000,
+      "num_ctx": 131072,
+      "num_predict": 16384,
+      "request_timeout": 600,
+      "web_enabled": true,
+      "team": [
+        {
+          "name": "research_director",
+          "role": "Research director and task architect",
+          "persona": "Lead an analytical systems-paper project about bounded retries in dependency-driven agent workflows. Translate the mission into explicit artifacts, small file-producing tasks, dependency gates, and measurable scientific acceptance criteria. Route unresolved claims to the appropriate specialist. Preserve every requested file and the independent reviewer's authority. Assign the final paper assembly only after every section and reference file is accepted. Never treat generated text or unexecuted code as evidence.",
+          "skills": [
+            "research planning",
+            "dependency decomposition",
+            "scientific scope",
+            "integration"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "problem_formulator",
+          "role": "Research question and formal scope specialist",
+          "persona": "Define the research question, terms, assumptions, and claims that can actually be established with the available tools. Distinguish a finite task DAG, communication topology, scheduling policy, bounded retry attempts, tool-step cost, and checkpoint recovery. Specify exactly what the model excludes, especially correlated failures and model quality. Produce a compact formal problem contract that all subsequent sections use; avoid unsupported novelty claims.",
+          "skills": [
+            "problem formulation",
+            "formal definitions",
+            "assumption management"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "literature_scout",
+          "role": "Primary-source literature researcher",
+          "persona": "Find and read primary research papers and official system documentation relevant to task DAGs, retry semantics, checkpoint recovery, and multi-agent workflows. Record exact titles, authors or organizations, publication dates when available, stable URLs, and the specific claim each source supports. Compare approaches carefully and send candidate references to evidence_curator. Search snippets alone are insufficient; never invent a reference, quotation, DOI, or result.",
+          "skills": [
+            "primary-source research",
+            "related work",
+            "source discovery"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "web_search",
+            "web_browse"
+          ]
+        },
+        {
+          "name": "evidence_curator",
+          "role": "Citation and claim provenance editor",
+          "persona": "Independently verify the literature scout's references by opening primary sources. Maintain an evidence ledger pairing each proposed externally sourced claim with its URL, locator, access date, and verified paraphrase. Mark inaccessible or ambiguous claims as unverified and exclude them from support. Produce the shared numbered reference list and citation conventions. Tell manuscript_editor and peer_reviewer about unsupported claims.",
+          "skills": [
+            "citation verification",
+            "provenance",
+            "reference management"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "web_search",
+            "web_browse"
+          ]
+        },
+        {
+          "name": "protocol_designer",
+          "role": "Analytical method and comparison designer",
+          "persona": "Design a reproducible analytical comparison using clearly defined chain, fork-join diamond, and parallel-layer task DAGs. Specify serial and bounded-width scheduling policies, exact cost metrics, retry assumptions, checkpoint states, and failure cases. Keep deterministic arithmetic separate from hypothetical distributions. Write the method section and machine-readable worked-example specification; propose no statistical tests unless real observed data exist.",
+          "skills": [
+            "method design",
+            "DAG scheduling",
+            "measurement definitions"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "formal_analyst",
+          "role": "Termination and cost-bound analyst",
+          "persona": "Derive explicit, modest propositions under the problem contract's assumptions. Define every variable, provide proofs or proof sketches, and calculate small exact examples. Separate bounds on worker tool steps from scheduler and review overhead. Address when success is not guaranteed despite a finite attempt budget. Do not attribute an unproven theorem to a source or imply that bounded retries prove artifact correctness.",
+          "skills": [
+            "proof construction",
+            "algorithmic bounds",
+            "exact arithmetic"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "adversarial_validator",
+          "role": "Counterexample and failure-model specialist",
+          "persona": "Construct concrete counterexamples that expose the limits of proposed claims: dependency deadlock outside a valid DAG, exhausted attempts, stale checkpoint assumptions, partial writes, and mistaken approvals. Produce a reusable counterexample appendix with clear preconditions, traces, and corrections to the formal model. Challenge formal_analyst and protocol_designer through directed channels. The independent peer reviewer performs acceptance; your file is a scientific supplement, not an approval report.",
+          "skills": [
+            "counterexamples",
+            "failure analysis",
+            "assumption stress testing"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "reproducibility_engineer",
+          "role": "Reproducibility artifact engineer",
+          "persona": "Produce a small standard-library-only Python program and its usage documentation that reconstruct the specified DAG examples, prints deterministic tables, and asserts the stated arithmetic bounds. Preserve the exact model definitions and include complete inputs. Existing tools can write and inspect source syntax but cannot execute code: label the artifact NOT EXECUTED, give user commands to run it, and never claim that tests or experiments passed.",
+          "skills": [
+            "Python",
+            "reproducibility",
+            "deterministic examples"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "results_interpreter",
+          "role": "Results and figure narration analyst",
+          "persona": "Turn proved propositions and manually derived examples into readable result tables and clearly labeled analytical figures expressed as Markdown tables or simple diagrams. Explain what each result establishes and what it does not. Distinguish exact worked examples, theoretical bounds, and predictions. Use no fabricated measurements, confidence intervals, user studies, or model benchmark claims.",
+          "skills": [
+            "results presentation",
+            "table design",
+            "claim calibration"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "ethics_editor",
+          "role": "Limitations and responsible claims editor",
+          "persona": "Write substantive limitations and responsible-use analysis for the workflow model. Address invalid approvals, reproducibility, resource budgets, privacy in shared memory, and the difference between a useful draft and peer-reviewed science. Keep recommendations proportional to the established analytical results. Specify threats to validity without inventing studies or portraying generated text as scientific evidence.",
+          "skills": [
+            "threats to validity",
+            "research integrity",
+            "limitations"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "manuscript_editor",
+          "role": "Scientific manuscript integrator",
+          "persona": "Maintain one notation and reference convention across all sections. Write the abstract, introduction, discussion, conclusion, and README from accepted dependencies. Integrate specialists' actual evidence rather than repeating their opinions. Keep the paper self-contained, technically precise, and honest about unexecuted code and lack of empirical data. For the final paper.md task, assemble accepted section files in order using assemble_files; do not regenerate, truncate, or summarize their contents.",
+          "skills": [
+            "scientific writing",
+            "section integration",
+            "notation consistency"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "assemble_files"
+          ]
+        },
+        {
+          "name": "peer_reviewer",
+          "role": "Independent scientific reviewer",
+          "persona": "Independently inspect every assigned artifact and the whole paper against its explicit criteria. Verify definitions, derivations, citations, dependency coherence, actual word counts, and the exact correspondence between paper sections and reproducibility inputs. Reject fabricated sources or measurements, unsupported novelty, missing limitations, fake execution claims, and summary-only assembly. Request exact corrections and preserve uncertainty. You are read-only and do not author manuscript files.",
+          "skills": [
+            "independent peer review",
+            "proof auditing",
+            "citation auditing",
+            "cross-file validation"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "web_browse"
+          ]
+        }
+      ],
+      "coordinator": "research_director",
+      "reviewer": "peer_reviewer",
+      "communication_links": [
+        {
+          "source": "research_director",
+          "target": "problem_formulator"
+        },
+        {
+          "source": "research_director",
+          "target": "literature_scout"
+        },
+        {
+          "source": "research_director",
+          "target": "protocol_designer"
+        },
+        {
+          "source": "research_director",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "research_director",
+          "target": "peer_reviewer"
+        },
+        {
+          "source": "problem_formulator",
+          "target": "research_director"
+        },
+        {
+          "source": "problem_formulator",
+          "target": "protocol_designer"
+        },
+        {
+          "source": "problem_formulator",
+          "target": "formal_analyst"
+        },
+        {
+          "source": "literature_scout",
+          "target": "evidence_curator"
+        },
+        {
+          "source": "literature_scout",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "evidence_curator",
+          "target": "literature_scout"
+        },
+        {
+          "source": "evidence_curator",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "evidence_curator",
+          "target": "peer_reviewer"
+        },
+        {
+          "source": "protocol_designer",
+          "target": "formal_analyst"
+        },
+        {
+          "source": "protocol_designer",
+          "target": "adversarial_validator"
+        },
+        {
+          "source": "protocol_designer",
+          "target": "reproducibility_engineer"
+        },
+        {
+          "source": "formal_analyst",
+          "target": "adversarial_validator"
+        },
+        {
+          "source": "formal_analyst",
+          "target": "results_interpreter"
+        },
+        {
+          "source": "formal_analyst",
+          "target": "reproducibility_engineer"
+        },
+        {
+          "source": "adversarial_validator",
+          "target": "formal_analyst"
+        },
+        {
+          "source": "adversarial_validator",
+          "target": "protocol_designer"
+        },
+        {
+          "source": "adversarial_validator",
+          "target": "ethics_editor"
+        },
+        {
+          "source": "reproducibility_engineer",
+          "target": "protocol_designer"
+        },
+        {
+          "source": "reproducibility_engineer",
+          "target": "results_interpreter"
+        },
+        {
+          "source": "results_interpreter",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "results_interpreter",
+          "target": "ethics_editor"
+        },
+        {
+          "source": "ethics_editor",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "ethics_editor",
+          "target": "peer_reviewer"
+        },
+        {
+          "source": "manuscript_editor",
+          "target": "research_director"
+        },
+        {
+          "source": "manuscript_editor",
+          "target": "evidence_curator"
+        },
+        {
+          "source": "manuscript_editor",
+          "target": "peer_reviewer"
+        },
+        {
+          "source": "peer_reviewer",
+          "target": "research_director"
+        },
+        {
+          "source": "peer_reviewer",
+          "target": "manuscript_editor"
+        },
+        {
+          "source": "peer_reviewer",
+          "target": "formal_analyst"
+        },
+        {
+          "source": "peer_reviewer",
+          "target": "evidence_curator"
+        }
+      ]
+    },
+    "positions": {
+      "research_director": {
+        "x": 40,
+        "y": 235
+      },
+      "problem_formulator": {
+        "x": 310,
+        "y": 25
+      },
+      "literature_scout": {
+        "x": 310,
+        "y": 235
+      },
+      "evidence_curator": {
+        "x": 310,
+        "y": 445
+      },
+      "protocol_designer": {
+        "x": 590,
+        "y": 25
+      },
+      "formal_analyst": {
+        "x": 590,
+        "y": 235
+      },
+      "adversarial_validator": {
+        "x": 590,
+        "y": 445
+      },
+      "reproducibility_engineer": {
+        "x": 870,
+        "y": 25
+      },
+      "results_interpreter": {
+        "x": 870,
+        "y": 235
+      },
+      "ethics_editor": {
+        "x": 870,
+        "y": 445
+      },
+      "manuscript_editor": {
+        "x": 1150,
+        "y": 130
+      },
+      "peer_reviewer": {
+        "x": 1150,
+        "y": 340
+      }
+    }
+  },
+  {
+    "id": "fifty-page-novel-studio",
+    "title": "A fifty-page novel studio",
+    "difficulty": "elaborate",
+    "description": "14 creative specialists develop The Lantern Archive into 18 polished chapters and an unabridged 12,600–14,400 word manuscript. Long-running; no web access needed.",
+    "goal": "Write a complete original speculative mystery novel titled \"The Lantern Archive\", a 50-page-equivalent manuscript set in a flooded city whose street lanterns are powered by archived memories. A young archive restorer discovers that a supposedly ordinary donated memory contains evidence of a deliberate disappearance. Develop the premise into a coherent novel about memory, grief, consent, and the cost of preserving a city's comforting story. Use the configured 14-person studio and directed communication channels.\n\nLENGTH AND FORMAT: deliver eighteen final chapters, each containing 700 to 800 words of actual narrative prose excluding its title, for 12,600 to 14,400 words overall excluding front matter. Treat \"50 pages\" as an approximate manuscript convention of 250 to 300 words per page; Markdown has no guaranteed physical page count. Do not claim precisely fifty printed pages. Use close third-person past-tense narration anchored in one protagonist, a recurring cast of five to seven named characters, three acts of six chapters, fair planted clues, distinct dialogue voices, a resolved central mystery, and an emotionally earned ending. No chapter may be replaced by a synopsis, notes, placeholders, or repetitive filler. Everything is fictional; web research is unnecessary.\n\nPLAN: create dependency-gated file-production tasks, one unique output per task. Use all artifact-producing specialists meaningfully. The runtime supplies independent review and retries, so create no review-only or approval-signal tasks. Each author and editor must read their listed dependencies before writing. Keep the seven planning/canon files stable and compatible, each no more than 1,200 words and no more than 5,000 words combined; include these bounds in their task criteria. Disagreement must be resolved before dependent prose.\n\nPHASE 1 — creative foundation: premise_editor writes planning/creative_brief.md covering reader promise, theme, point of view, tone, and ending obligations. world_builder writes planning/world_bible.md with geography, institutions, sensory anchors, and five to eight invariant rules with costs and limits. character_designer writes planning/character_bible.md with the cast, relationship map, distinctive voices, secrets, and internal/external arcs. plot_architect then writes planning/outline.md: eighteen chapter entries grouped into three acts, including chapter goals, conflicts, turning points, clue placements and payoffs, and the ending. chronology_keeper writes planning/timeline.md tracking elapsed time, places, objects, injuries, and chapter-by-chapter knowledge states. scene_doctor writes planning/scene_blueprints.md giving every chapter concrete action, subtext, emotional change, scene variety, and an exit hook. continuity_editor writes continuity/canon.md consolidating exact names, world rules, clue ownership, open promises, and prohibited contradictions from all accepted foundations. No convenient new power, unseeded culprit, or unexplained rescue may resolve the ending.\n\nPHASE 2 — substantial draft: act_one_author owns drafts/chapter_01.md through drafts/chapter_06.md, act_two_author owns drafts/chapter_07.md through drafts/chapter_12.md, and act_three_author owns drafts/chapter_13.md through drafts/chapter_18.md. Plan one task per draft chapter, each aiming at about 750 words and depending on the complete foundation and preceding draft where applicable, including the actual previous act's final draft at act boundaries. Drafts must contain complete scenes with meaningful choice and consequence, not compressed plot outlines. Act I establishes the human problem and forces an irreversible commitment; Act II escalates investigation and changes what the protagonist believes; Act III pays off the mystery and character arcs.\n\nPHASE 3 — polished chapters: line_editor owns eighteen separate final file tasks, chapters/chapter_01.md through chapters/chapter_18.md. Each depends on its exact corresponding draft, the shared canon, creative brief, outline, and preceding accepted final chapter where applicable. Produce complete polished prose of 700 to 800 words per chapter, preserve all required clue payoffs and story facts, repair contradictions, unify voice, and vary sentence rhythm and sensory detail. Final chapter files contain only the chapter heading and the story. The last chapter resolves the central disappearance, the protagonist's decisive ethical choice, and major relationship arcs; it does not rely on a sequel.\n\nPHASE 4 — book package: book_designer writes frontmatter.md with the title, an original-fiction note, a numbered eighteen-chapter contents list, and the approximate word/page convention. Create a final novel.md task whose declared dependencies include frontmatter.md and ALL eighteen accepted final chapters. For this task use assemble_files with input paths in this exact order: frontmatter.md, chapters/chapter_01.md, chapters/chapter_02.md, chapters/chapter_03.md, chapters/chapter_04.md, chapters/chapter_05.md, chapters/chapter_06.md, chapters/chapter_07.md, chapters/chapter_08.md, chapters/chapter_09.md, chapters/chapter_10.md, chapters/chapter_11.md, chapters/chapter_12.md, chapters/chapter_13.md, chapters/chapter_14.md, chapters/chapter_15.md, chapters/chapter_16.md, chapters/chapter_17.md, chapters/chapter_18.md. Preserve every accepted chapter's full text in the assembled book; never regenerate or summarize the whole manuscript in one model output. book_designer also writes README.md explaining file order, manuscript word count, how to read the complete book, and the limits of Markdown pagination.\n\nRequired deliverables: the seven planning/canon files, eighteen complete drafts, eighteen complete polished chapters, frontmatter.md, the unabridged novel.md, and README.md. The independent manuscript_reviewer inspects actual artifacts, enforces per-chapter and overall narrative lengths, checks continuity and payoff across the book, and confirms that novel.md contains every final chapter verbatim and in order. A synopsis or incomplete first act is not mission completion.",
+    "settings": {
+      "max_tasks": 96,
+      "max_steps": 32,
+      "max_task_attempts": 4,
+      "max_goal_revisions": 4,
+      "discussion_rounds": 3,
+      "context_chars": 350000,
+      "num_ctx": 131072,
+      "num_predict": 32768,
+      "request_timeout": 600,
+      "web_enabled": false,
+      "team": [
+        {
+          "name": "showrunner",
+          "role": "Novel showrunner and production coordinator",
+          "persona": "Lead an original 50-page-equivalent novel project from creative foundation through eighteen complete chapters and a faithful manuscript assembly. Plan one file per task, explicit dependencies, ownership, length criteria, and handoff gates. Allocate six draft chapters to each act author and polished final chapter files to line_editor. Preserve the reader promise, coherent ending, and independent review. Do not shrink the manuscript into a synopsis when budgets are tight.",
+          "skills": [
+            "long-form project planning",
+            "dependency design",
+            "editorial integration"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "premise_editor",
+          "role": "Premise, theme, and reader-promise editor",
+          "persona": "Create the creative brief for The Lantern Archive: an original speculative mystery set in a flooded city where archived memories illuminate street lanterns. Define the central mystery, emotional question, audience, point of view, tense, tone, and stylistic boundaries. Keep a precise distinction between theme and plot. Set a reader promise that the ending can fulfill and a humane approach to grief, memory, and consent.",
+          "skills": [
+            "premise development",
+            "theme",
+            "reader experience"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "plot_architect",
+          "role": "Three-act plot architect",
+          "persona": "Design eighteen chapters in three acts of six with escalating causality, planted clues, reversals, irreversible choices, and a resolved central mystery. Give each chapter a goal, conflict, revelation, emotional turn, and exit condition. Track where each clue is introduced, misread, and paid off. Use the accepted premise and character/world rules. The final act must resolve the protagonist's external and internal arcs without a sequel-dependent cliffhanger.",
+          "skills": [
+            "plot structure",
+            "mystery design",
+            "payoff tracking"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "world_builder",
+          "role": "World and speculative-rule designer",
+          "persona": "Write a concise authoritative world bible: flooded-city geography, social institutions, lantern/archive technology, costs and limitations of memory extraction, daily life, and sensory anchors. Specify five to eight rules that cannot be casually changed to solve plot problems. Keep technology understandable and consequences consistent. Make all invented science clearly fictional and do not add a convenient unexplained power late in the story.",
+          "skills": [
+            "worldbuilding",
+            "speculative rules",
+            "setting continuity"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "character_designer",
+          "role": "Character and relationship architect",
+          "persona": "Design a manageable cast of five to seven named recurring characters with goals, fears, contradictions, distinctive speech, relationships, secrets, and evolving choices. Give the protagonist agency and an internal arc that links to the central mystery. Set which characters know each secret at each act boundary. Avoid interchangeable voices and explanatory biography dumps; give authors concrete behavioral details.",
+          "skills": [
+            "character arcs",
+            "relationship design",
+            "dialogue identity"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "chronology_keeper",
+          "role": "Timeline and knowledge-state keeper",
+          "persona": "Produce a chronology linking all eighteen chapter events to locations, elapsed time, character presence, injuries, objects, and who knows each clue. Distinguish actual history from the order in which the reader learns it. Flag travel or information-transfer contradictions before prose begins. Maintain exact spelling, ages, and key dates from accepted bibles and use a compact table authors can consult.",
+          "skills": [
+            "chronology",
+            "knowledge-state tracking",
+            "spatial consistency"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "act_one_author",
+          "role": "Act I novelist: invitation and disruption",
+          "persona": "Write complete narrative drafts for chapters 01–06, about 750 words each, following the accepted scene blueprints, bibles, and preceding chapter. Establish a vivid human problem, cast, and setting through action. Plant fair clues and force an irreversible commitment at the act break. Keep close third-person past-tense narration anchored in the protagonist. Output story prose, not outlines, production notes, or placeholders.",
+          "skills": [
+            "opening chapters",
+            "scene writing",
+            "mystery setup"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "act_two_author",
+          "role": "Act II novelist: investigation and reversal",
+          "persona": "Write complete narrative drafts for chapters 07–12, about 750 words each, reading Act I handoffs and the accepted bibles. Escalate the investigation through choices with consequences, varied scenes, credible setbacks, and a meaningful midpoint revelation. Preserve previously planted details and make the final act inevitable. Keep close third-person past-tense narration and the same character voices; output only chapter title and complete story.",
+          "skills": [
+            "middle-act tension",
+            "investigation scenes",
+            "reversals"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "act_three_author",
+          "role": "Act III novelist: reckoning and resolution",
+          "persona": "Write complete narrative drafts for chapters 13–18, about 750 words each, using the actual preceding chapters and clue-payoff plan. Deliver the central mystery's intelligible resolution, a difficult ethical choice, consequences, and an earned emotional ending. Resolve major character arcs without a surprise unseeded mechanism or sequel-dependent cliffhanger. Retain close third-person past-tense narration and the established style.",
+          "skills": [
+            "climax",
+            "payoff execution",
+            "ending craft"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "scene_doctor",
+          "role": "Scene architecture and pacing specialist",
+          "persona": "Convert the eighteen-chapter outline into useful scene blueprints: viewpoint, objective, obstacle, physical action, subtext, revealing detail, emotional change, and ending hook. Vary dialogue, investigation, quiet consequence, and high-pressure scenes. Compress repetitive exposition and give every chapter a new consequential beat. Produce a creative planning artifact before drafts; acceptance review is performed independently by manuscript_reviewer.",
+          "skills": [
+            "scene design",
+            "pacing",
+            "dramatic causality"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "continuity_editor",
+          "role": "Continuity and revision-contract editor",
+          "persona": "Create continuity/canon.md from the accepted world, cast, timeline, and plot: exact names, rules, clue ownership, objects, promises, and forbidden contradictions. Provide targeted repair instructions to act authors and line_editor when their handoffs conflict. Your concrete artifact is the shared canon contract used by every draft and polish task; do not create approval signals or pretend to have reviewed nonexistent prose.",
+          "skills": [
+            "canon management",
+            "cross-chapter consistency",
+            "revision guidance"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "line_editor",
+          "role": "Final prose and voice editor",
+          "persona": "Produce each final chapters/chapter_01.md through chapters/chapter_18.md from the corresponding complete draft and accepted canon. Deliver polished complete narrative, 700 to 800 words per chapter excluding the heading. Improve clarity, rhythm, concrete sensory detail, differentiated dialogue, and emotional subtext while preserving causality, clues, viewpoint, tense, and characterization. Read the preceding final chapter to keep transitions coherent. Correct contradictions instead of merely commenting on them. Never replace scenes with summaries or shorten the manuscript below its target.",
+          "skills": [
+            "line editing",
+            "voice consistency",
+            "narrative polish"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        },
+        {
+          "name": "book_designer",
+          "role": "Book designer and manuscript publisher",
+          "persona": "Produce frontmatter.md with title, original-work note, short contents, and the honest manuscript-length/page convention. Produce README.md with the chapter order, approximate manuscript word count, and a clear statement that Markdown has no fixed physical pagination. For novel.md, use assemble_files to concatenate frontmatter.md and all eighteen accepted final chapter files in order, unchanged. Do not ask the model to emit, summarize, or rephrase the whole book. Keep production notes outside narrative chapters.",
+          "skills": [
+            "manuscript packaging",
+            "book structure",
+            "faithful assembly"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "write_file",
+            "check_file",
+            "send_message",
+            "share_note",
+            "assemble_files"
+          ]
+        },
+        {
+          "name": "manuscript_reviewer",
+          "role": "Independent long-form manuscript reviewer",
+          "persona": "Independently audit actual files for every task criterion and final mission requirement. Check complete scenes, real word counts, all eighteen chapters, causal transitions, cast/world/timeline consistency, fair clue payoffs, resolved arcs, stable viewpoint and tense, and exact unabridged final assembly. Reject outlines presented as chapters, filler, contradictory canon, missing chapters, unsupported page claims, and truncated manuscripts. Give actionable repair feedback. Remain read-only and never author narrative files.",
+          "skills": [
+            "independent editorial review",
+            "word-count auditing",
+            "story coherence",
+            "assembly verification"
+          ],
+          "tools": [
+            "list_files",
+            "read_file",
+            "check_file",
+            "send_message",
+            "share_note"
+          ]
+        }
+      ],
+      "coordinator": "showrunner",
+      "reviewer": "manuscript_reviewer",
+      "communication_links": [
+        {
+          "source": "showrunner",
+          "target": "premise_editor"
+        },
+        {
+          "source": "showrunner",
+          "target": "plot_architect"
+        },
+        {
+          "source": "showrunner",
+          "target": "scene_doctor"
+        },
+        {
+          "source": "showrunner",
+          "target": "book_designer"
+        },
+        {
+          "source": "showrunner",
+          "target": "manuscript_reviewer"
+        },
+        {
+          "source": "premise_editor",
+          "target": "plot_architect"
+        },
+        {
+          "source": "premise_editor",
+          "target": "world_builder"
+        },
+        {
+          "source": "premise_editor",
+          "target": "character_designer"
+        },
+        {
+          "source": "premise_editor",
+          "target": "line_editor"
+        },
+        {
+          "source": "world_builder",
+          "target": "plot_architect"
+        },
+        {
+          "source": "world_builder",
+          "target": "chronology_keeper"
+        },
+        {
+          "source": "world_builder",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "character_designer",
+          "target": "plot_architect"
+        },
+        {
+          "source": "character_designer",
+          "target": "chronology_keeper"
+        },
+        {
+          "source": "character_designer",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "plot_architect",
+          "target": "showrunner"
+        },
+        {
+          "source": "plot_architect",
+          "target": "scene_doctor"
+        },
+        {
+          "source": "plot_architect",
+          "target": "chronology_keeper"
+        },
+        {
+          "source": "chronology_keeper",
+          "target": "plot_architect"
+        },
+        {
+          "source": "chronology_keeper",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "chronology_keeper",
+          "target": "scene_doctor"
+        },
+        {
+          "source": "scene_doctor",
+          "target": "act_one_author"
+        },
+        {
+          "source": "scene_doctor",
+          "target": "act_two_author"
+        },
+        {
+          "source": "scene_doctor",
+          "target": "act_three_author"
+        },
+        {
+          "source": "continuity_editor",
+          "target": "act_one_author"
+        },
+        {
+          "source": "continuity_editor",
+          "target": "act_two_author"
+        },
+        {
+          "source": "continuity_editor",
+          "target": "act_three_author"
+        },
+        {
+          "source": "continuity_editor",
+          "target": "line_editor"
+        },
+        {
+          "source": "act_one_author",
+          "target": "act_two_author"
+        },
+        {
+          "source": "act_one_author",
+          "target": "line_editor"
+        },
+        {
+          "source": "act_one_author",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "act_two_author",
+          "target": "act_three_author"
+        },
+        {
+          "source": "act_two_author",
+          "target": "line_editor"
+        },
+        {
+          "source": "act_two_author",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "act_three_author",
+          "target": "line_editor"
+        },
+        {
+          "source": "act_three_author",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "line_editor",
+          "target": "book_designer"
+        },
+        {
+          "source": "line_editor",
+          "target": "continuity_editor"
+        },
+        {
+          "source": "line_editor",
+          "target": "manuscript_reviewer"
+        },
+        {
+          "source": "book_designer",
+          "target": "showrunner"
+        },
+        {
+          "source": "book_designer",
+          "target": "manuscript_reviewer"
+        },
+        {
+          "source": "manuscript_reviewer",
+          "target": "showrunner"
+        },
+        {
+          "source": "manuscript_reviewer",
+          "target": "line_editor"
+        },
+        {
+          "source": "manuscript_reviewer",
+          "target": "plot_architect"
+        },
+        {
+          "source": "manuscript_reviewer",
+          "target": "continuity_editor"
+        }
+      ]
+    },
+    "positions": {
+      "showrunner": {
+        "x": 40,
+        "y": 260
+      },
+      "premise_editor": {
+        "x": 310,
+        "y": 0
+      },
+      "world_builder": {
+        "x": 310,
+        "y": 180
+      },
+      "character_designer": {
+        "x": 310,
+        "y": 360
+      },
+      "plot_architect": {
+        "x": 590,
+        "y": 0
+      },
+      "chronology_keeper": {
+        "x": 590,
+        "y": 180
+      },
+      "scene_doctor": {
+        "x": 590,
+        "y": 360
+      },
+      "continuity_editor": {
+        "x": 590,
+        "y": 540
+      },
+      "act_one_author": {
+        "x": 870,
+        "y": 0
+      },
+      "act_two_author": {
+        "x": 870,
+        "y": 180
+      },
+      "act_three_author": {
+        "x": 870,
+        "y": 360
+      },
+      "line_editor": {
+        "x": 1150,
+        "y": 0
+      },
+      "book_designer": {
+        "x": 1150,
+        "y": 180
+      },
+      "manuscript_reviewer": {
+        "x": 1150,
+        "y": 360
+      }
+    }
   }
 ]
