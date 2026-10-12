@@ -1,6 +1,7 @@
 """Test the control room through HTTP and actual checkpointed graph operations."""
 
 import json
+import re
 import threading
 import time
 
@@ -34,13 +35,13 @@ def control_room(tmp_path):
     thread.join(timeout=2)
 
 
-def test_http_world_creation_live_step_admin_and_resume(control_room):
+def test_http_room_creation_live_step_admin_and_resume(control_room):
     client, manager = control_room
     page = client.get("/")
-    assert page.status_code == 200 and "The commons" in page.text
-    assert "GOD’S EYE" in page.text
-    assert client.get("/app.js").status_code == 200
-    assert client.get("/style.css").status_code == 200
+    assert page.status_code == 200 and 'id="root"' in page.text
+    assets = re.findall(r'(?:src|href)="(/(?:assets/[^\"]+|app.js|style.css))"', page.text)
+    assert assets
+    assert all(client.get(path).status_code == 200 for path in assets)
     assert client.get("/api/bootstrap").json()["settings"]["model"] == "gemma4:e2b"
     response = client.post(
         "/api/runs",
@@ -122,3 +123,24 @@ def test_partial_event_record_is_not_lost(tmp_path):
     remaining, cursor = RunManager.read_events(tmp_path, cursor)
     assert remaining == [second]
     assert cursor == path.stat().st_size
+
+
+def test_fast_event_feed_preserves_bursts_without_reading_checkpoint(control_room, monkeypatch):
+    client, manager = control_room
+    created = client.post("/api/runs", json={"goal": "An event transport test"}).json()
+    run_id = created["manifest"]["run_id"]
+    collective = manager.get(run_id).collective
+
+    def unexpected_read(*args, **kwargs):
+        raise AssertionError("Fast polling must not load graph state")
+
+    monkeypatch.setattr(collective, "state", unexpected_read)
+    expected = []
+    for _ in range(40):
+        for kind in ("node_started", "tool_result", "node_finished"):
+            expected.append(collective.emit(kind, agent="builder", tool="write_file")["id"])
+    response = client.get(f"/api/runs/{run_id}/events")
+    assert response.status_code == 200, response.text
+    batch = response.json()
+    assert [e["id"] for e in batch["events"]] == expected
+    assert client.get(f"/api/runs/{run_id}/events?cursor={batch['cursor']}").json()["events"] == []

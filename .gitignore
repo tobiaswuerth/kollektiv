@@ -7,3 +7,8 @@ __pycache__/
 runs/
 dist/
 build/
+node_modules/
+frontend/.vite/
+frontend/coverage/
+frontend/test-results/
+frontend/playwright-report/

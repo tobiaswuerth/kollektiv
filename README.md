@@ -19,7 +19,7 @@ uv run kollektiv serve --open
 ```
 
 If Ollama is not already running, start `ollama serve` in a separate terminal.
-No cloud credentials are required. Open `http://127.0.0.1:8765` for the virtual-world control room.
+No cloud credentials are required. Open `http://127.0.0.1:8765` for the agent graph control room.
 To run from the terminal, use `uv run kollektiv run --goal-file examples/smoke.txt`.
 The example takes several model calls; progress appears as agents respond. Ollama speed depends
 on the machine and the amount of content requested.
@@ -80,7 +80,7 @@ Shared notes, discussion findings, task reflections and review feedback persist 
 Tasks dispatched in the same wave share the wave's starting context. Messages from that wave
 become available to subsequent tasks; task dependencies establish ordering when a handoff is needed.
 
-## Virtual-world control room
+## Agent graph control room
 
 ```powershell
 uv run kollektiv serve --open
@@ -88,9 +88,16 @@ uv run kollektiv serve --open
 uv run kollektiv serve --port 8766
 ```
 
-The browser displays the team on a small virtual island, with activity and communication animated
-from actual runtime events. Pan and zoom the world, select an agent, and inspect the collective
-through the live activity, tasks, conversations, artifacts and debug views.
+The browser combines the team and its live activity in a draggable, zoomable agent graph.
+Colored person cards show agent state, task progress and recent tools; directed edges animate
+actual messages, and tool calls appear as loops around their agent. Select a person, channel,
+task, event or artifact to inspect its details on the right.
+
+The left sidebar holds the mission, phases and task states. A full-width bottom dock has two
+independent tabbed panes, so messages and live debug can stay visible together. Each pane can
+also show memory, state or artifacts. Resize the dock height and pane split with the handles
+or their keyboard arrow controls. On narrow screens, the panes stack and the inspector becomes
+a dismissible drawer. Animations respect the operating system's reduced-motion preference.
 
 Create a goal and configure its model/team, then start it or step through one graph node at a time.
 Steps include individual worker model calls, tool executions and reviews. Pause waits for the
@@ -105,6 +112,10 @@ can be edited before the first graph execution; a different goal needs a new run
 
 The state inspector includes active worker checkpoints and tool history. The debug feed exposes
 model responses, tool calls/results, checksums, reviews, control changes and failures.
+While running, the frontend polls the lightweight event feed every 125 ms and refreshes the
+full checkpoint approximately every 750 ms. Every event is read from the durable log, including
+transitions that finish between polls. Idle and hidden tabs poll less often. Transport latency
+appears in the header; model/server health is checked separately.
 
 ## Inspect and resume
 
@@ -201,6 +212,42 @@ result = Collective.open(run.directory).run()
 ```
 
 ## Development and validation
+
+The frontend source is in `frontend/`, built with React, TypeScript and Vite. It uses
+[React Flow](https://reactflow.dev/) for graph interaction, Dagre for initial layout,
+Zustand for runtime state, and Lucide for icons. Modules separate the transport/store,
+graph, mission overview, inspector, dock and intervention forms. Components consume typed
+snapshots and events through `api.ts`; `useRuntime.ts` owns polling and reconnection.
+
+The compiled frontend is checked into `src/kollektiv/web/` and included in the Python package.
+Running the control room needs no Node installation. To change its source, install Node 20.19+
+or 22.12+ and run:
+
+```powershell
+cd frontend
+npm ci
+npm run dev
+```
+
+Start `uv run kollektiv serve` from the repository root in another terminal. Vite's development
+server proxies `/api` to `127.0.0.1:8765`. After editing, regenerate the packaged assets and check
+the frontend:
+
+```powershell
+cd frontend
+npm run build
+npm test
+npm run test:e2e
+npm run format:check
+```
+
+The browser test starts an isolated server with scripted models, real tools and checkpoints;
+it does not require Ollama or touch normal runs. It uses installed Microsoft Edge on Windows;
+elsewhere, install Playwright Chromium with `npx playwright install chromium`, or set
+`BROWSER_PATH` to a browser executable. Port 8767 must be free so the test can create its own
+temporary workspace.
+
+Run the Python checks from the repository root:
 
 ```powershell
 uv sync --extra dev

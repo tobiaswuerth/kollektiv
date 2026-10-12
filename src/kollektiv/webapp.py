@@ -142,6 +142,18 @@ class RunManager:
             "artifacts": artifacts,
         }
 
+    def events(self, run_id: str, cursor: int = 0) -> dict:
+        """Cheap high-frequency reads preserve fast transitions without loading checkpoints."""
+        managed = self.get(run_id)
+        events, next_cursor = self.read_events(managed.collective.directory, cursor)
+        return {
+            "events": events,
+            "cursor": next_cursor,
+            "running": managed.running,
+            "control": managed.control.snapshot() if managed.control else None,
+            "error": managed.error,
+        }
+
     def control(self, run_id: str, action: str, *, retry: bool = False) -> dict:
         managed = self.get(run_id)
         with managed.lock:
@@ -214,8 +226,12 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
             self.send_header("Connection", "close")
         self.send_header("X-Content-Type-Options", "nosniff")
         self.send_header("Referrer-Policy", "same-origin")
-        self.end_headers()
-        self.wfile.write(data)
+        try:
+            self.end_headers()
+            self.wfile.write(data)
+        except ConnectionError:
+            # Closing a tab can abandon an in-flight event or health poll.
+            self.close_connection = True
 
     def send_json(self, value: dict | list, status: int = 200):
         self.send_data(
@@ -253,9 +269,15 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
         parts = path.strip("/").split("/")
         query = parse_qs(parsed.query)
         manager = self.server.manager
-        if method == "GET" and path in {"/", "/index.html", "/app.js", "/style.css"}:
+        if method == "GET" and (
+            path in {"/", "/index.html", "/app.js", "/style.css"}
+            or re.fullmatch(r"/assets/[A-Za-z0-9_.-]+", path)
+        ):
             name = "index.html" if path == "/" else path[1:]
-            data = files("kollektiv").joinpath("web", name).read_bytes()
+            resource = files("kollektiv").joinpath("web", name)
+            if not resource.is_file():
+                return self.send_json({"error": "Not found"}, HTTPStatus.NOT_FOUND)
+            data = resource.read_bytes()
             content_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
             return self.send_data(data, content_type + "; charset=utf-8")
         if method == "GET" and path == "/api/bootstrap":
@@ -290,6 +312,9 @@ class ControlRoomHandler(BaseHTTPRequestHandler):
                 name = query.get("path", [""])[0]
                 workspace = manager.get(run_id).collective.workspace
                 return self.send_json({"path": name, "content": workspace.read(name)})
+            if method == "GET" and len(parts) == 4 and parts[3] == "events":
+                cursor = int(query.get("cursor", ["0"])[0])
+                return self.send_json(manager.events(run_id, cursor))
             if method == "POST" and len(parts) == 4:
                 data = self.body()
                 action = data.pop("action", "")

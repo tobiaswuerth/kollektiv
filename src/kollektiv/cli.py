@@ -80,7 +80,7 @@ def parser() -> argparse.ArgumentParser:
     )
     graph = commands.add_parser("graph", help="Print the workflow as Mermaid")
     graph.add_argument("--output", help="Write Mermaid to this file")
-    serve = commands.add_parser("serve", help="Open the virtual-world control room")
+    serve = commands.add_parser("serve", help="Open the agent graph control room")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8765)
     serve.add_argument("--runs-dir", default="runs")
