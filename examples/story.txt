@@ -1,0 +1,4 @@
+Write a coherent fantasy sci-fi story set in a post-apocalyptic world.
+Produce three Markdown files named chapter_1.md, chapter_2.md, and chapter_3.md.
+Each file must contain only its chapter title and story, around 300 words.
+Use a shared outline to maintain consistent characters and a clear beginning, middle, and ending.

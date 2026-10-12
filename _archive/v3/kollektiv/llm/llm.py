@@ -20,7 +20,7 @@ def _clean_thinking(response: str) -> str:
 
 
 class LLMClient:
-    def __init__(self, model_name: str = "mistral-nemo:latest") -> None:
+    def __init__(self, model_name: str = "gemma4:e4b") -> None:
         self.model_name = model_name
         self.context_window = 2048
         self.context_window_dynamic = False

@@ -1,0 +1,313 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="theme-color" content="#122120" />
+    <title>Kollektiv — Collective control room</title>
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Crect width='40' height='40' rx='11' fill='%231a3732'/%3E%3Cpath d='M12 10v20m16-20L16 20l12 10' stroke='%23d7edc2' stroke-width='4' fill='none'/%3E%3C/svg%3E"
+    />
+    <link rel="stylesheet" href="/style.css" />
+    <script src="/app.js" defer></script>
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="app-header">
+        <a class="brand" href="/" aria-label="Kollektiv home"
+          ><span class="brand-mark">k<span>·</span></span
+          ><span>kollektiv<span class="edition">04</span></span></a
+        >
+        <div class="header-divider"></div>
+        <span class="header-caption">COLLECTIVE CONTROL ROOM</span>
+        <div class="header-end">
+          <span id="connection" class="connection"
+            ><i></i><span>Connecting</span></span
+          ><button id="new-run" class="button button-light">
+            <span>＋</span> New world
+          </button>
+        </div>
+      </header>
+
+      <aside class="sidebar">
+        <div class="sidebar-heading">
+          <span class="eyebrow">YOUR WORLDS</span
+          ><button
+            id="refresh-runs"
+            class="icon-button"
+            aria-label="Refresh worlds"
+            title="Refresh worlds"
+          >
+            ↻
+          </button>
+        </div>
+        <label class="sr-only" for="run-select">Select a world</label
+        ><select id="run-select">
+          <option value="">Create your first world</option>
+        </select>
+        <section class="mission-section">
+          <div class="section-label">
+            <span class="eyebrow">SHARED MISSION</span
+            ><button id="edit-goal" class="text-button" hidden>Edit</button>
+          </div>
+          <h1 id="mission-title">Small team.<br />Shared ambition.</h1>
+          <p id="mission-detail">
+            Give your agents a goal. Watch them collaborate, build, and review
+            their work.
+          </p>
+          <div class="mission-status">
+            <span id="run-status" class="status-chip status-created"
+              >Ready to begin</span
+            ><span id="revision" class="muted"></span>
+          </div>
+          <div class="progress-label">
+            <span id="task-progress-label">Collective progress</span
+            ><span id="task-progress-value">—</span>
+          </div>
+          <div class="progress-track"><div id="task-progress"></div></div>
+        </section>
+        <section class="roster-section">
+          <div class="section-label">
+            <span class="eyebrow">THE COLLECTIVE</span
+            ><span id="roster-count" class="count-badge">4</span>
+          </div>
+          <div id="roster" class="roster"></div>
+        </section>
+        <div class="sidebar-bottom">
+          <span class="local-dot"></span>
+          <div>
+            <strong>Locally connected</strong
+            ><span id="model-label">Ollama · gemma4:e2b</span>
+          </div>
+          <button
+            id="show-config"
+            class="icon-button"
+            aria-label="Inspect configuration"
+            title="Inspect configuration"
+          >
+            ⚙
+          </button>
+        </div>
+      </aside>
+
+      <main class="main">
+        <section class="world-card" aria-label="Virtual collective world">
+          <div class="world-heading">
+            <div>
+              <span class="eyebrow">LIVE WORLD</span>
+              <h2>The commons <span id="world-run-id"></span></h2>
+            </div>
+            <div class="world-live">
+              <i></i><span id="world-phase">Awaiting a mission</span>
+            </div>
+          </div>
+          <div id="world-viewport" class="world-viewport">
+            <canvas
+              id="world-canvas"
+              aria-label="Interactive world map. Drag to pan, scroll to zoom, or select an agent using the roster."
+            ></canvas>
+            <div id="world-empty" class="world-empty">
+              <span class="empty-kicker">A PLACE FOR IDEAS TO BECOME REAL</span>
+              <p>Every great project starts<br />with a shared goal.</p>
+              <button id="world-create" class="button button-dark">
+                Create a world <span>↗</span>
+              </button>
+            </div>
+            <div class="map-legend">
+              <span><i class="legend-working"></i>Working</span
+              ><span><i class="legend-waiting"></i>Listening</span
+              ><span><i class="legend-paused"></i>Paused</span>
+            </div>
+            <div class="camera-controls">
+              <button id="zoom-out" aria-label="Zoom out" title="Zoom out">
+                −</button
+              ><button id="camera-fit" aria-label="Fit world" title="Fit world">
+                ⌖</button
+              ><button id="zoom-in" aria-label="Zoom in" title="Zoom in">
+                ＋</button
+              ><span></span
+              ><button
+                id="world-fullscreen"
+                aria-label="Full screen world"
+                title="Full screen world"
+              >
+                ⛶
+              </button>
+            </div>
+          </div>
+          <div class="transport-bar">
+            <div class="transport-controls">
+              <button id="run-control" class="button button-run">
+                <span id="run-control-icon">▶</span
+                ><span id="run-control-label">Run collective</span></button
+              ><button
+                id="step-control"
+                class="button button-ghost"
+                title="Advance exactly one graph node"
+              >
+                <span>▸│</span> Step</button
+              ><button
+                id="stop-control"
+                class="icon-button"
+                title="Stop after current node; progress is saved"
+                aria-label="Stop collective"
+              >
+                ■
+              </button>
+            </div>
+            <div class="transport-info">
+              <span id="control-note">One goal. Many perspectives.</span
+              ><span id="node-count" class="mono">0 nodes</span
+              ><button id="retry-control" class="text-button" hidden>
+                Retry
+              </button>
+            </div>
+          </div>
+        </section>
+
+        <section class="activity-card">
+          <div class="activity-top">
+            <nav class="tabs" aria-label="Collective data views">
+              <button class="tab active" data-tab="messages">
+                Messages <span id="message-count">0</span></button
+              ><button class="tab" data-tab="tasks">
+                Tasks <span id="task-count">0</span></button
+              ><button class="tab" data-tab="artifacts">
+                Artifacts <span id="artifact-count">0</span></button
+              ><button class="tab" data-tab="memory">Memory</button
+              ><button class="tab" data-tab="debug">Live debug</button
+              ><button class="tab" data-tab="state">State</button>
+            </nav>
+            <button
+              id="activity-action"
+              class="icon-button"
+              aria-label="Send a message"
+              title="Send a message"
+            >
+              ＋
+            </button>
+          </div>
+          <div id="activity-content" class="activity-content"></div>
+        </section>
+      </main>
+
+      <aside class="inspector">
+        <div class="inspector-heading">
+          <span class="eyebrow">GOD’S EYE</span
+          ><span class="inspector-mode">INSPECT & INTERVENE</span
+          ><button
+            id="inspector-close"
+            class="icon-button"
+            aria-label="Close inspector"
+            title="Close inspector"
+          >
+            ×
+          </button>
+        </div>
+        <div id="inspector-content" class="inspector-content"></div>
+        <div class="inspector-footer">
+          <span class="pulse-dot"></span
+          ><span id="inspector-footer-text">Live checkpoint inspection</span>
+        </div>
+      </aside>
+    </div>
+
+    <dialog id="create-dialog" class="dialog create-dialog">
+      <form id="create-form">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">A NEW BEGINNING</span>
+            <h2>Create your world</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button dialog-close"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p class="dialog-description">
+          A clear goal gives your collective a direction. They’ll discuss a
+          plan, create artifacts, and review the result.
+        </p>
+        <label for="goal-input">Shared goal</label
+        ><textarea
+          id="goal-input"
+          rows="4"
+          required
+          placeholder="What should the collective achieve? Be specific about the result you want."
+        ></textarea>
+        <div class="form-grid">
+          <div>
+            <label for="model-input">Ollama model</label
+            ><input id="model-input" value="gemma4:e2b" required />
+          </div>
+          <div>
+            <label for="concurrency-input">Concurrent agents</label
+            ><input
+              id="concurrency-input"
+              type="number"
+              min="1"
+              max="16"
+              value="1"
+              required
+            />
+          </div>
+        </div>
+        <label class="checkbox-label"
+          ><input type="checkbox" id="web-input" /> Allow research on the
+          web</label
+        >
+        <details class="advanced-settings">
+          <summary>Team & advanced settings <span>JSON</span></summary>
+          <p>Customize personas, tools, model parameters, and task limits.</p>
+          <textarea
+            id="settings-input"
+            rows="12"
+            spellcheck="false"
+            class="mono"
+          ></textarea>
+        </details>
+        <p id="create-error" class="form-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" class="button button-ghost dialog-close">
+            Cancel</button
+          ><button id="create-submit" type="submit" class="button button-run">
+            Create world <span>↗</span>
+          </button>
+        </div>
+      </form>
+    </dialog>
+
+    <dialog id="admin-dialog" class="dialog admin-dialog">
+      <form id="admin-form">
+        <div class="dialog-heading">
+          <div>
+            <span class="eyebrow">GOD’S EYE CONTROL</span>
+            <h2 id="admin-title">Send a message</h2>
+          </div>
+          <button
+            type="button"
+            class="icon-button dialog-close"
+            aria-label="Close"
+          >
+            ×
+          </button>
+        </div>
+        <p id="admin-description" class="dialog-description"></p>
+        <div id="admin-fields"></div>
+        <p id="admin-error" class="form-error" role="alert"></p>
+        <div class="dialog-footer">
+          <button type="button" class="button button-ghost dialog-close">
+            Cancel</button
+          ><button id="admin-submit" type="submit" class="button button-run">
+            Apply intervention
+          </button>
+        </div>
+      </form>
+    </dialog>
+    <div id="toast" class="toast" role="status"></div>
+  </body>
+</html>

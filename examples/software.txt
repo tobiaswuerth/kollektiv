@@ -1,0 +1,5 @@
+Build a playable browser Pong game for two people sharing a keyboard.
+Produce index.html, style.css, game.js, and README.md.
+The game must have two paddles, a bouncing ball, a visible score, keyboard controls, and a restart button.
+The README must explain how to start it locally and list the controls.
+Keep it self-contained with no remote assets or dependencies.

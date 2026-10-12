@@ -1,0 +1,52 @@
+---
+config:
+  flowchart:
+    curve: linear
+---
+graph TD;
+	__start__([<p>__start__</p>]):::first
+	begin(begin)
+	discuss(discuss)
+	discussion_join(discussion_join)
+	plan(plan)
+	schedule(schedule)
+	collect(collect)
+	goal_review(goal_review)
+	revise(revise)
+	finalize(finalize)
+	__end__([<p>__end__</p>]):::last
+	__start__ --> begin;
+	begin -.-> discuss;
+	begin -.-> plan;
+	collect --> schedule;
+	discuss --> discussion_join;
+	discussion_join -.-> discuss;
+	discussion_join -.-> plan;
+	goal_review -.-> finalize;
+	goal_review -.-> revise;
+	plan --> schedule;
+	revise --> schedule;
+	schedule -.-> finalize;
+	schedule -.-> goal_review;
+	schedule -.-> worker\3a__start__;
+	worker\3afinish --> collect;
+	finalize --> __end__;
+	subgraph worker
+	worker\3a__start__(<p>__start__</p>)
+	worker\3aact(act)
+	worker\3atools(tools)
+	worker\3areview(review)
+	worker\3aretry(retry)
+	worker\3afinish(finish)
+	worker\3a__start__ --> worker\3aact;
+	worker\3aact -.-> worker\3areview;
+	worker\3aact -.-> worker\3atools;
+	worker\3aretry --> worker\3aact;
+	worker\3areview -.-> worker\3afinish;
+	worker\3areview -.-> worker\3aretry;
+	worker\3atools -.-> worker\3aact;
+	worker\3atools -.-> worker\3areview;
+	end
+	classDef default fill:#f2f0ff,line-height:1.2
+	classDef first fill-opacity:0
+	classDef last fill:#bfb6fc
